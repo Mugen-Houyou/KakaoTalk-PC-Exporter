@@ -8,13 +8,11 @@ namespace KakaoPcLogger.Services
     public sealed class ChatCaptureService
     {
         private readonly ChatWindowInteractor _windowInteractor;
-        private readonly ClipboardService _clipboardService;
         private readonly string _dbPath;
 
-        public ChatCaptureService(ChatWindowInteractor windowInteractor, ClipboardService clipboardService, string dbPath)
+        public ChatCaptureService(ChatWindowInteractor windowInteractor, string dbPath)
         {
             _windowInteractor = windowInteractor;
-            _clipboardService = clipboardService;
             _dbPath = dbPath;
         }
 
@@ -29,17 +27,16 @@ namespace KakaoPcLogger.Services
                 };
             }
 
-            _windowInteractor.ActivateAndCopy(entry);
-
-            string? clipboardText = _clipboardService.TryReadText();
-            if (clipboardText is null)
+            if (!_windowInteractor.TryReadAllText(entry, out var capturedText, out var readWarning))
             {
                 return new ChatCaptureResult
                 {
                     Success = false,
-                    Warning = $"[경고] 클립보드 읽기 실패: {entry.Title}"
+                    Warning = readWarning ?? $"[경고] UI Automation 읽기 실패: {entry.Title}"
                 };
             }
+
+            capturedText ??= string.Empty;
 
             string? dbMessage = null;
             string? dbError = null;
@@ -48,7 +45,7 @@ namespace KakaoPcLogger.Services
             {
                 ChatDatabase.EnsureDatabase(_dbPath);
                 long chatId = ChatDatabase.GetOrCreateChatId(_dbPath, entry.Title);
-                var parsed = ChatParser.ParseRaw(clipboardText);
+                var parsed = ChatParser.ParseRaw(capturedText);
 
                 if (parsed.Count > 0)
                 {
@@ -68,7 +65,8 @@ namespace KakaoPcLogger.Services
             return new ChatCaptureResult
             {
                 Success = true,
-                ClipboardText = clipboardText,
+                CapturedText = capturedText,
+                Warning = readWarning,
                 DbMessage = dbMessage,
                 DbError = dbError
             };

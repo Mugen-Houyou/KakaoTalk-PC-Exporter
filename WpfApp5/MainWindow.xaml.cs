@@ -31,7 +31,7 @@ namespace KakaoPcLogger
             InitializeComponent();
 
             _dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "kakao_chat_v2.db");
-            _captureService = new ChatCaptureService(new ChatWindowInteractor(), new ClipboardService(), _dbPath);
+            _captureService = new ChatCaptureService(new ChatWindowInteractor(), _dbPath);
 
             LvChats.ItemsSource = _chats;
 
@@ -224,7 +224,7 @@ namespace KakaoPcLogger
                 return;
             }
 
-            string text = result.ClipboardText ?? string.Empty;
+            string text = result.CapturedText ?? string.Empty;
             var now = DateTime.Now;
 
             _captureCount++;
