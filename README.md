@@ -1,6 +1,7 @@
 # KakaoTalk PC Chat Capture & Sender (WPF)
 
 WPF GUI 앱으로, Windows PC 카카오톡 채팅방의 메시지를 주기적으로 캡처·저장하고, GUI에서 특정 채팅방을 선택해 메시지를 송신할 수 있습니다.
+
 메시지 캡처는 클립보드로 수행하는 방식입니다.
 
 > ⚠️ **개인 계정/대화 데이터 사용 주의**  
