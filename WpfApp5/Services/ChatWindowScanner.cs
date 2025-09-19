@@ -18,37 +18,86 @@ namespace KakaoPcLogger.Services
             _chatListClass = chatListClass;
         }
 
+        //public IReadOnlyList<ChatEntry> Scan(bool autoInclude)
+        //{
+        //    var results = new List<ChatEntry>();
+
+        //    NativeMethods.EnumWindows((hTop, _) =>
+        //    {
+        //        if (!NativeMethods.IsWindow(hTop))
+        //            return true;
+
+        //        if (!TryGetProcessInfo(hTop, out var pid, out var processName))
+        //            return true;
+
+        //        if (!string.Equals(processName, _targetProcessName, StringComparison.OrdinalIgnoreCase))
+        //            return true;
+
+        //        string parentTitle = GetWindowTextSafe(hTop);
+
+        //        NativeMethods.EnumChildWindows(hTop, (hChild, __) =>
+        //        {
+        //            string className = GetClassNameSafe(hChild);
+        //            if (string.Equals(className, _chatListClass, StringComparison.Ordinal))
+        //            {
+        //                results.Add(new ChatEntry
+        //                {
+        //                    Hwnd = hChild,
+        //                    ParentHwnd = hTop,
+        //                    Title = string.IsNullOrWhiteSpace(parentTitle) ? "(제목 없음/불명)" : parentTitle,
+        //                    ClassName = className,
+        //                    Pid = pid,
+        //                    IsSelected = autoInclude
+        //                });
+        //            }
+        //            return true;
+        //        }, IntPtr.Zero);
+
+        //        return true;
+        //    }, IntPtr.Zero);
+
+        //    return results;
+        //}
         public IReadOnlyList<ChatEntry> Scan(bool autoInclude)
         {
             var results = new List<ChatEntry>();
+            var seen = new HashSet<IntPtr>(); // 중복 방지(선택)
 
             NativeMethods.EnumWindows((hTop, _) =>
             {
-                if (!NativeMethods.IsWindow(hTop))
-                    return true;
-
                 if (!TryGetProcessInfo(hTop, out var pid, out var processName))
                     return true;
 
                 if (!string.Equals(processName, _targetProcessName, StringComparison.OrdinalIgnoreCase))
                     return true;
 
-                string parentTitle = GetWindowTextSafe(hTop);
+                // 부모(채팅방 창) 제목
+                string parentTitle = GetWindowTextSafe(hTop).Trim();
+
+                // ⬇️ 여기서 필터링: 제목이 없거나 정확히 "KakaoTalk"면 스킵
+                if (string.IsNullOrWhiteSpace(parentTitle) ||
+                    string.Equals(parentTitle, "KakaoTalk", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true; // 이 최상위 창은 조사하지 않음
+                }
 
                 NativeMethods.EnumChildWindows(hTop, (hChild, __) =>
                 {
                     string className = GetClassNameSafe(hChild);
                     if (string.Equals(className, _chatListClass, StringComparison.Ordinal))
                     {
-                        results.Add(new ChatEntry
+                        if (seen.Add(hChild)) // (선택) 같은 컨트롤 중복 추가 방지
                         {
-                            Hwnd = hChild,
-                            ParentHwnd = hTop,
-                            Title = string.IsNullOrWhiteSpace(parentTitle) ? "(제목 없음/불명)" : parentTitle,
-                            ClassName = className,
-                            Pid = pid,
-                            IsSelected = autoInclude
-                        });
+                            results.Add(new ChatEntry
+                            {
+                                Hwnd = hChild,
+                                ParentHwnd = hTop,
+                                Title = parentTitle,          // 더 이상 "(제목 없음/불명)" 사용 안 함
+                                ClassName = className,
+                                Pid = pid,
+                                IsSelected = autoInclude
+                            });
+                        }
                     }
                     return true;
                 }, IntPtr.Zero);
@@ -58,6 +107,7 @@ namespace KakaoPcLogger.Services
 
             return results;
         }
+
 
         private static bool TryGetProcessInfo(IntPtr hWnd, out int pid, out string? processName)
         {

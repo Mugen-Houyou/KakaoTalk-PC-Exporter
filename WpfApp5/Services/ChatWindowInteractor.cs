@@ -51,12 +51,25 @@ namespace KakaoPcLogger.Services
             FocusParent(entry.ParentHwnd);
             Thread.Sleep(30);
 
+            ClickTextbox(input);
+            Thread.Sleep(10);
+
+            PressKey(input, NativeConstants.VK_A, false);
+            Thread.Sleep(30);
+            PressKey(input, NativeConstants.VK_BACK, false);
+
+            ClickTextbox(input);
+            Thread.Sleep(10);
+
             string normalized = NormalizeLineEndings(message);
             NativeMethods.SendMessage(input, NativeConstants.WM_SETTEXT, IntPtr.Zero, normalized);
             Thread.Sleep(20);
 
             IntPtr caretEnd = (IntPtr)(-1);
             NativeMethods.SendMessage(input, NativeConstants.EM_SETSEL, caretEnd, caretEnd);
+            Thread.Sleep(10);
+
+            ClickTextbox(input);
             Thread.Sleep(10);
 
             PressEnter(input);
@@ -81,6 +94,13 @@ namespace KakaoPcLogger.Services
         private static void DeselectList(IntPtr hwnd)
         {
             IntPtr point = NativeMethods.MakeLParam(30, 3);
+            NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
+            NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
+        }
+
+        private static void ClickTextbox(IntPtr hwnd)
+        {
+            IntPtr point = NativeMethods.MakeLParam(15, 15);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
         }
@@ -170,6 +190,37 @@ namespace KakaoPcLogger.Services
             Thread.Sleep(15);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_KEYUP, (IntPtr)NativeConstants.VK_RETURN,
                 (IntPtr)(lparam.ToInt64() | (1L << 30) | (1L << 31)));
+
+            NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+        }
+        private static void PressKey(IntPtr hwnd, int keyVk, bool sysKey = false)
+        {
+            if (!NativeMethods.IsWindow(hwnd))
+                return;
+
+            uint targetThread = NativeMethods.GetWindowThreadProcessId(hwnd, out _);
+            uint currentThread = NativeMethods.GetCurrentThreadId();
+
+            NativeMethods.AttachThreadInput(currentThread, targetThread, true);
+
+            var oldState = new byte[256];
+            var newState = new byte[256];
+            NativeMethods.GetKeyboardState(oldState);
+            Array.Copy(oldState, newState, 256);
+
+            newState[keyVk] |= 0x80;
+            NativeMethods.SetKeyboardState(newState);
+
+            int msgDown = sysKey ? NativeConstants.WM_SYSKEYDOWN : NativeConstants.WM_KEYDOWN;
+            int msgUp = sysKey ? NativeConstants.WM_SYSKEYUP : NativeConstants.WM_KEYUP;
+
+            IntPtr lparam = NativeMethods.MakeKeyLParam((uint)keyVk);
+            NativeMethods.PostMessage(hwnd, msgDown, (IntPtr)keyVk, lparam);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(hwnd, msgUp, (IntPtr)keyVk, (IntPtr)(lparam.ToInt64() | (1L << 30) | (1L << 31)));
+
+            Array.Copy(oldState, newState, 256);
+            NativeMethods.SetKeyboardState(newState);
 
             NativeMethods.AttachThreadInput(currentThread, targetThread, false);
         }

@@ -74,7 +74,7 @@ namespace KakaoPcLogger
             UpdateComposerCount();
 
             _timer.Tick += OnTick;
-            _timer.Interval = TimeSpan.FromMilliseconds(1500);
+            _timer.Interval = TimeSpan.FromMilliseconds(3000);
 
             LvChats.MouseDoubleClick += OnChatDoubleClick;
 
@@ -179,7 +179,7 @@ namespace KakaoPcLogger
             }
             else
             {
-                _timer.Interval = TimeSpan.FromMilliseconds(1500);
+                _timer.Interval = TimeSpan.FromMilliseconds(3000);
             }
 
             _rrIndex = 0;
