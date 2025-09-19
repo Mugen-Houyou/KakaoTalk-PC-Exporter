@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -26,6 +26,13 @@ namespace KakaoPcLogger.Interop
         [DllImport("user32.dll")]
         internal static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        internal static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, string? lParam);
+
+        // RichEdit EM_EXSETSEL 전용: lParam = ref CHARRANGE
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, ref CHARRANGE lParam);
+
         [DllImport("user32.dll")]
         internal static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
@@ -50,6 +57,9 @@ namespace KakaoPcLogger.Interop
         [DllImport("user32.dll")]
         internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
         internal static IntPtr MakeLParam(int low, int high)
             => (IntPtr)((high << 16) | (low & 0xFFFF));
 
@@ -57,6 +67,13 @@ namespace KakaoPcLogger.Interop
         {
             ushort scan = (ushort)MapVirtualKey(vk, 0);
             return MakeLParam(0, scan);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CHARRANGE
+        {
+            public int cpMin; // 시작 인덱스
+            public int cpMax; // 끝 인덱스 (같게 주면 캐럿 이동)
         }
     }
 }

@@ -48,7 +48,7 @@
                 <Separator/>
 
                 <TextBlock Text="폴링(ms):" Style="{StaticResource FieldLabel}"/>
-                <TextBox x:Name="TxtIntervalMs" Width="80" Text="1500"
+                <TextBox x:Name="TxtIntervalMs" Width="80" Text="3000"
                          ToolTip="캡처 주기(밀리초)"/>
 
                 <Separator/>
