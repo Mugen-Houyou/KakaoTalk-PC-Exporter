@@ -26,6 +26,9 @@ namespace KakaoPcLogger.Interop
         [DllImport("user32.dll")]
         internal static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        internal static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, string? lParam);
+
         [DllImport("user32.dll")]
         internal static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
@@ -49,6 +52,9 @@ namespace KakaoPcLogger.Interop
 
         [DllImport("user32.dll")]
         internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
         internal static IntPtr MakeLParam(int low, int high)
             => (IntPtr)((high << 16) | (low & 0xFFFF));

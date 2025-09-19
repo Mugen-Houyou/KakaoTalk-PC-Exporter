@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading;
 using KakaoPcLogger.Interop;
 using KakaoPcLogger.Models;
@@ -24,6 +25,44 @@ namespace KakaoPcLogger.Services
             FocusParent(entry.ParentHwnd);
             SelectAllAndCopy(entry.Hwnd);
             DeselectList(entry.Hwnd);
+        }
+
+        public bool TrySendMessage(ChatEntry entry, string message, string inputClassName, out string? error)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                error = "[송신] 메시지가 비어 있습니다.";
+                return false;
+            }
+
+            if (!Validate(entry, out var warning))
+            {
+                error = warning ?? "[송신] 대상 창이 무효합니다.";
+                return false;
+            }
+
+            IntPtr input = FindEditableChild(entry.ParentHwnd, inputClassName);
+            if (input == IntPtr.Zero)
+            {
+                error = $"[송신] 입력 컨트롤({inputClassName})을 찾을 수 없습니다: {entry.Title}";
+                return false;
+            }
+
+            FocusParent(entry.ParentHwnd);
+            Thread.Sleep(30);
+
+            string normalized = NormalizeLineEndings(message);
+            NativeMethods.SendMessage(input, NativeConstants.WM_SETTEXT, IntPtr.Zero, normalized);
+            Thread.Sleep(20);
+
+            IntPtr caretEnd = (IntPtr)(-1);
+            NativeMethods.SendMessage(input, NativeConstants.EM_SETSEL, caretEnd, caretEnd);
+            Thread.Sleep(10);
+
+            PressEnter(input);
+
+            error = null;
+            return true;
         }
 
         private static void FocusParent(IntPtr parent)
@@ -74,6 +113,63 @@ namespace KakaoPcLogger.Services
 
             Array.Copy(oldState, newState, 256);
             NativeMethods.SetKeyboardState(newState);
+
+            NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+        }
+
+        private static IntPtr FindEditableChild(IntPtr parent, string className)
+        {
+            IntPtr result = IntPtr.Zero;
+
+            NativeMethods.EnumChildWindows(parent, (hWnd, _) =>
+            {
+                if (!NativeMethods.IsWindow(hWnd))
+                    return true;
+
+                var sb = new StringBuilder(256);
+                NativeMethods.GetClassName(hWnd, sb, sb.Capacity);
+                if (!string.Equals(sb.ToString(), className, StringComparison.Ordinal))
+                    return true;
+
+                int style = NativeMethods.GetWindowLong(hWnd, NativeConstants.GWL_STYLE);
+                bool isEditable = (style & NativeConstants.ES_READONLY) == 0;
+                bool isMultiline = (style & NativeConstants.ES_MULTILINE) != 0;
+
+                if (isEditable && isMultiline)
+                {
+                    result = hWnd;
+                    return false;
+                }
+
+                return true;
+            }, IntPtr.Zero);
+
+            return result;
+        }
+
+        private static string NormalizeLineEndings(string message)
+        {
+            string normalized = message.Replace("\r\n", "\n").Replace('\r', '\n');
+            return normalized.Replace("\n", "\r\n");
+        }
+
+        private static void PressEnter(IntPtr hwnd)
+        {
+            if (!NativeMethods.IsWindow(hwnd))
+                return;
+
+            uint targetThread = NativeMethods.GetWindowThreadProcessId(hwnd, out _);
+            uint currentThread = NativeMethods.GetCurrentThreadId();
+
+            NativeMethods.AttachThreadInput(currentThread, targetThread, true);
+
+            IntPtr lparam = NativeMethods.MakeKeyLParam((uint)NativeConstants.VK_RETURN);
+            NativeMethods.PostMessage(hwnd, NativeConstants.WM_KEYDOWN, (IntPtr)NativeConstants.VK_RETURN, lparam);
+            Thread.Sleep(15);
+            NativeMethods.PostMessage(hwnd, NativeConstants.WM_CHAR, (IntPtr)'\r', lparam);
+            Thread.Sleep(15);
+            NativeMethods.PostMessage(hwnd, NativeConstants.WM_KEYUP, (IntPtr)NativeConstants.VK_RETURN,
+                (IntPtr)(lparam.ToInt64() | (1L << 30) | (1L << 31)));
 
             NativeMethods.AttachThreadInput(currentThread, targetThread, false);
         }
