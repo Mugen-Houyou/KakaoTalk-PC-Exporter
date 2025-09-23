@@ -25,5 +25,14 @@
 
         public const int EM_SETSEL = 0x00B1;  // Edit 계열: 캐럿/선택 설정
         public const uint EM_EXSETSEL = 0x0437;  // wParam=0, lParam=ref CHARRANGE
+
+        // 셸 후킹을 위한 상수들
+        internal const int HSHELL_WINDOWCREATED = 1;
+        internal const int HSHELL_WINDOWDESTROYED = 2;
+        internal const int HSHELL_REDRAW = 6;            // title/icon change
+        internal const int HSHELL_HIGHBIT = 0x8000;
+        internal const int HSHELL_FLASH = HSHELL_HIGHBIT | HSHELL_REDRAW; // 0x8006
+        internal const uint GA_ROOT = 2;
+        internal const uint GA_ROOTOWNER = 3;
     }
 }

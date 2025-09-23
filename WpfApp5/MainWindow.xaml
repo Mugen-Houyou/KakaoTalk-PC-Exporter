@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="KakaoTalk Capture Logger"
-        Width="1080" Height="720"
+        Width="1004" Height="584"
         MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         Topmost="{Binding IsChecked, ElementName=ChkTopMost}">
@@ -41,38 +41,50 @@
     <DockPanel LastChildFill="True">
 
         <!-- 상단 툴바 -->
+
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button x:Name="BtnScan" Content="채팅방 검색" Width="110" Margin="2,0"
-                        ToolTip="현재 실행 중인 KakaoTalk.exe 창들에서 EVA_VH_ListControl_Dblclk 컨트롤을 검색합니다."/>
+                <Button x:Name="BtnScan" Content="채팅방 검색" Width="100" Margin="0"
+            ToolTip="현재 실행 중인 KakaoTalk.exe 창들에서 EVA_VH_ListControl_Dblclk 컨트롤을 검색합니다."/>
                 <Separator/>
 
+                <!-- 폴링(라운드로빈 간격) -->
                 <TextBlock Text="폴링(ms):" Style="{StaticResource FieldLabel}"/>
-                <TextBox x:Name="TxtIntervalMs" Width="80" Text="3000"
-                         ToolTip="캡처 주기(밀리초)"/>
+                <TextBox x:Name="TxtIntervalMs" Width="50" Text="3000"
+             ToolTip="캡처 주기(밀리초). 해당 주기마다 창을 번갈아가며 캡처합니다."/>
 
                 <Separator/>
 
-                <CheckBox x:Name="ChkRoundRobin" Content="라운드로빈 순회" IsChecked="True" Margin="4,0"
-                          ToolTip="선택된 모든 채팅방을 순서대로 순회하며 캡처"/>
-                <CheckBox x:Name="ChkAutoInclude" Content="새 창 자동 포함" Margin="8,0,0,0"
-                          ToolTip="검색 시 새로 열린 채팅방을 자동으로 선택 상태로 추가"/>
+                <CheckBox x:Name="ChkRoundRobin" Content="라운드 로빈 순회" IsChecked="True" Margin="5,0"
+              ToolTip="선택된 모든 채팅방을 순서대로 순회하며 캡처합니다. 해제 시, 좌측 메뉴에서 선택된 채팅방만 캡처합니다."/> 
+                <CheckBox x:Name="ChkAutoInclude" Content="새 창을 자동 포함" Margin="8,0,0,0"
+              ToolTip="검색 시 새로 열린 채팅방을 자동으로 선택 상태로 추가합니다."/>
                 <CheckBox x:Name="ChkAutoScroll" Content="자동 스크롤" IsChecked="True" Margin="12,0,0,0"/>
                 <CheckBox x:Name="ChkTopMost" Content="항상 위" Margin="8,0,0,0"/>
 
                 <Separator/>
 
-                <Button x:Name="BtnStart" Content="시작" Width="80" Margin="4,0"
-                        ToolTip="캡처 루프 시작"/>
-                <Button x:Name="BtnStop" Content="중지" Width="80" Margin="4,0"
-                        ToolTip="캡처 루프 중지" IsEnabled="False"/>
+                <!-- FLASH 방식 제어 -->
+                <TextBlock Text="FLASH:" Style="{StaticResource FieldLabel}" Margin="0,0,2,0"/>
+                <Button x:Name="BtnStartFlash" Content="시작" Width="60" Margin="2,0"
+            ToolTip="작업표시줄 FLASH/REDRAW 이벤트 기반 캡처 시작"/>
+                <Button x:Name="BtnStopFlash" Content="중지" Width="60" Margin="2,0"
+            ToolTip="FLASH 기반 캡처 중지" IsEnabled="False"/>
 
                 <Separator/>
 
-                <Button x:Name="BtnClear" Content="로그 지우기" Margin="4,0"/>
-                <Button x:Name="BtnCopyLog" Content="로그 복사" Margin="4,0"/>
+                <!-- 라운드 로빈 방식 제어 -->
+                <TextBlock Text="RoundRobin:" Style="{StaticResource FieldLabel}" Margin="0,0,2,0"/>
+                <Button x:Name="BtnStartRr" Content="시작" Width="60" Margin="2,0"
+            ToolTip="타이머 기반 라운드로빈 캡처 시작"/>
+                <Button x:Name="BtnStopRr" Content="중지" Width="60" Margin="2,0"
+            ToolTip="라운드로빈 캡처 중지" IsEnabled="False"/>
+
+                <Separator/>
+
             </ToolBar>
         </ToolBarTray>
+
 
         <!-- 메인 영역: 좌측 채팅방 목록 / 우측 로그 + 송신 컴포저 -->
         <Grid>
@@ -132,9 +144,14 @@
                 <!-- 로그 제목 -->
                 <DockPanel Grid.Row="0" LastChildFill="False">
                     <TextBlock Text="캡처 로그" FontWeight="Bold" Margin="0,0,8,6"/>
-                    <TextBlock Text=" | 송신 대상: " Margin="0,0,2,6" Foreground="Gray"/>
+                    <TextBlock Text=" |  " Margin="0,0,2,6" Foreground="Gray"/>
                     <TextBlock x:Name="TxtSendTarget" Margin="0,0,0,6" Foreground="Gray"
                                ToolTip="더블클릭한 채팅방(또는 현재 선택된 항목)이 송신 대상입니다."/>
+
+                    <DockPanel DockPanel.Dock="Right" LastChildFill="False">
+                        <Button x:Name="BtnClear" Content="로그 지우기" Margin="4,0" DockPanel.Dock="Right"/>
+                        <Button x:Name="BtnCopyLog" Content="로그 복사" Margin="4,0" DockPanel.Dock="Right"/>
+                    </DockPanel>
                 </DockPanel>
 
                 <!-- 로그 -->
@@ -155,35 +172,65 @@
 
                 <!-- ✅ 송신 컴포저 -->
                 <Border Grid.Row="2" BorderBrush="#DDD" BorderThickness="1" Margin="0,8,0,0">
-                    <DockPanel LastChildFill="True" Margin="8">
-                        <!-- 좌측: 설정 -->
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,0">
-                            <CheckBox x:Name="ChkEnterToSend" Content="Enter=전송" IsChecked="True" Margin="0,0,8,0"
-                                      ToolTip="체크 시 Enter로 전송, Ctrl+Enter는 줄바꿈. 해제 시 Enter는 줄바꿈"/>
-                            <CheckBox x:Name="ChkKeepFocusAfterSend" Content="전송 후 입력창 유지" IsChecked="True" Margin="0,0,8,0"/>
-                            <TextBlock Text="글자수:" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtComposerCount" Text="0" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <!-- 우측: 버튼 -->
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                            <Button x:Name="BtnClearComposer" Content="지우기" Margin="8,0,0,0" Width="70"/>
-                            <Button x:Name="BtnSend" Content="전송" Margin="8,0,0,0" Width="80"
-                                    ToolTip="현재 선택/표시 중인 채팅방으로 메시지를 전송"/>
-                        </StackPanel>
+                    <!-- 좌: 메시지 입력, 우: 컨트롤 패널 -->
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <!-- 입력창 -->
+                            <ColumnDefinition Width="220"/>
+                            <!-- 컨트롤 패널 너비 (필요시 조절) -->
+                        </Grid.ColumnDefinitions>
 
                         <!-- 메시지 입력 -->
                         <TextBox x:Name="TxtComposer"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Disabled"
-                                 FontFamily="Malgun Gothic, 'D2Coding', Consolas, monospace"
-                                 FontSize="12"
-                                 MinHeight="68"
-                                 ToolTip="보낼 메시지를 입력하세요. Enter=전송, Ctrl+Enter=줄바꿈 (옵션 변경 가능)"/>
-                    </DockPanel>
+             Grid.Column="0"
+             AcceptsReturn="True"
+             TextWrapping="Wrap"
+             VerticalScrollBarVisibility="Auto"
+             HorizontalScrollBarVisibility="Disabled"
+             FontFamily="Malgun Gothic, 'D2Coding', Consolas, monospace"
+             FontSize="12"
+             MinHeight="68"
+             ToolTip="보낼 메시지를 입력하세요. Enter=전송, Ctrl+Enter=줄바꿈 (옵션 변경 가능)" Grid.ColumnSpan="2" Margin="0,0,167,0"/>
+
+                        <!-- 우측 컨트롤 패널 -->
+                        <Grid Grid.Column="1" Margin="58,0,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <!-- 버튼 -->
+                                <RowDefinition Height="8"/>
+                                <!-- 간격 -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 옵션 체크박스 -->
+                                <RowDefinition Height="*"/>
+                                <!-- 여백 -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 글자수 -->
+                            </Grid.RowDefinitions>
+
+                            <!-- 버튼 (가로) -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button x:Name="BtnClearComposer" Content="지우기" Width="69" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnSend" Content="전송" Width="84"
+                ToolTip="현재 선택/표시 중인 채팅방으로 메시지를 전송"/>
+                            </StackPanel>
+
+                            <!-- 옵션 (세로) -->
+                            <StackPanel Grid.Row="2" Orientation="Vertical">
+                                <CheckBox x:Name="ChkEnterToSend" Content="Enter=전송" IsChecked="True"
+                  ToolTip="체크 시 Enter로 전송, Ctrl+Enter는 줄바꿈. 해제 시 Enter는 줄바꿈"/>
+                                <CheckBox x:Name="ChkKeepFocusAfterSend" Content="전송 후 입력창을 유지" IsChecked="True"/>
+                            </StackPanel>
+
+                            <!-- 글자수 (우하단 정렬) -->
+                            <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock Text="글자수:" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtComposerCount" Text="0" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
                 </Border>
+
             </Grid>
 
             <!-- 하단 상태바 -->

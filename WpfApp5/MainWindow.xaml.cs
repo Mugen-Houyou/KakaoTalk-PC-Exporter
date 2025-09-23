@@ -1,3 +1,6 @@
+using KakaoPcLogger.Interop;
+using KakaoPcLogger.Models;
+using KakaoPcLogger.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -6,8 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
-using KakaoPcLogger.Models;
-using KakaoPcLogger.Services;
+using WpfApp5.Services;
 
 namespace KakaoPcLogger
 {
@@ -30,20 +32,36 @@ namespace KakaoPcLogger
         private string? _currentViewKey;
         private ChatEntry? _sendTarget;
 
+        private TaskbarFlashWatcher? _flashWatcher;
+
+        // 윈도우별 쿨다운/재진입 방지
+        private readonly Dictionary<IntPtr, DateTime> _lastCaptureUtcByHwnd = new();
+        private readonly HashSet<IntPtr> _inProgress = new();
+
+        // 캡처 쿨다운 (필요에 맞게 조정: 5~10초 권장)
+        private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(8);
+
+
         public MainWindow()
         {
             InitializeComponent();
 
             _dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "kakao_chat_v2.db");
-            _captureService = new ChatCaptureService(_windowInteractor, new ClipboardService(), _dbPath);
+            _captureService = new ChatCaptureService(_windowInteractor, new ClipboardService(), _dbPath, _scanner);
             _sendService = new ChatSendService(_windowInteractor);
 
             LvChats.ItemsSource = _chats;
             LvChats.SelectionChanged += OnChatSelectionChanged;
 
             BtnScan.Click += (_, __) => ScanChats();
-            BtnStart.Click += (_, __) => StartCapture();
-            BtnStop.Click += (_, __) => StopCapture();
+
+            // 변경: FLASH & RR 각각
+            BtnStartFlash.Click += (_, __) => StartCaptureFlash();
+            BtnStopFlash.Click += (_, __) => StopCaptureFlash();
+
+            BtnStartRr.Click += (_, __) => StartCaptureRr();
+            BtnStopRr.Click += (_, __) => StopCaptureRr();
+
             BtnClear.Click += (_, __) =>
             {
                 TxtLog.Clear();
@@ -98,6 +116,84 @@ namespace KakaoPcLogger
                 {
                     SetLog($"[{entry.Title}]의 로그가 비어 있음");
                 }
+            }
+        }
+        private void OnFlashSignal(IntPtr hwnd, int code)
+        {
+            // 같은 창에 대해 과도한 중복 캡처 방지
+            var now = DateTime.UtcNow;
+
+            if (_lastCaptureUtcByHwnd.TryGetValue(hwnd, out var last) &&
+                (now - last) < CaptureCooldown)
+            {
+                // 쿨다운 범위면 무시
+                // AppendLog($"[FLASH] skip (cooldown) hwnd=0x{hwnd.ToInt64():X}");
+                return;
+            }
+
+            // 재진입 방지
+            // 즉, 이미 캡처 중이면 스킵
+            if (_inProgress.Contains(hwnd))
+                return;
+
+            _inProgress.Add(hwnd);
+            _lastCaptureUtcByHwnd[hwnd] = now; // 먼저 찍어 중복 트리거 억제
+
+            try
+            {
+                // 기존 매칭/캡처 로직
+                var entries = _scanner.Scan(autoInclude: false);
+
+                ChatEntry? entry =
+                    entries.FirstOrDefault(e => e.ParentHwnd == hwnd) ??
+                    entries.FirstOrDefault(e => e.Hwnd == hwnd);
+
+                if (entry is null)
+                {
+                    // 보조 매칭: OWNER → ROOT 순으로 시도
+                    IntPtr owner = NativeMethods.GetAncestor(hwnd, NativeConstants.GA_ROOTOWNER);
+                    if (owner == IntPtr.Zero) owner = hwnd;
+
+                    entry = entries.FirstOrDefault(e =>
+                    {
+                        var eo = NativeMethods.GetAncestor(e.ParentHwnd, NativeConstants.GA_ROOTOWNER);
+                        if (eo == IntPtr.Zero) eo = e.ParentHwnd;
+                        return eo == owner;
+                    });
+
+                    if (entry is null)
+                    {
+                        IntPtr root = NativeMethods.GetAncestor(hwnd, NativeConstants.GA_ROOT);
+                        if (root == IntPtr.Zero) root = hwnd;
+
+                        entry = entries.FirstOrDefault(e =>
+                        {
+                            var er = NativeMethods.GetAncestor(e.ParentHwnd, NativeConstants.GA_ROOT);
+                            if (er == IntPtr.Zero) er = e.ParentHwnd;
+                            return er == root;
+                        });
+                    }
+                }
+
+                if (entry is null)
+                {
+                    AppendLog($"[FLASH] 매칭 실패(쿨다운 적용 중): target=0x{hwnd.ToInt64():X}");
+                    return;
+                }
+
+                // 실제 캡처
+                CaptureOne(entry);
+
+                // 성공적으로 캡처했으면 최종 시각 갱신(선반영했지만 성공 타이밍으로 다시 박고 싶다면)
+                _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[FLASH 오류] {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                _inProgress.Remove(hwnd);
             }
         }
 
@@ -170,8 +266,30 @@ namespace KakaoPcLogger
             }
             TxtSelectedCount.Text = selected.ToString();
         }
+        private void StartCaptureFlash()
+        {
+            BtnStartFlash.IsEnabled = false;
+            BtnStopFlash.IsEnabled = true;
 
-        private void StartCapture()
+            _flashWatcher = new TaskbarFlashWatcher(TargetProcessName);
+            _flashWatcher.OnSignal += OnFlashSignal;
+            _flashWatcher.Start(this);
+
+            TxtStatus.Text = $"작업표시줄 FLASH 감시 시작 - {this.ToString()}";
+        }
+
+        private void StopCaptureFlash()
+        {
+            _flashWatcher?.Dispose();
+            _flashWatcher = null;
+
+            BtnStartFlash.IsEnabled = true;
+            BtnStopFlash.IsEnabled = false;
+            TxtStatus.Text = "감시 중지";
+        }
+
+        // Round Robin 캡처 (미사용)
+        private void StartCaptureRr()
         {
             if (int.TryParse(TxtIntervalMs.Text.Trim(), out int ms) && ms >= 200)
             {
@@ -183,17 +301,18 @@ namespace KakaoPcLogger
             }
 
             _rrIndex = 0;
-            BtnStart.IsEnabled = false;
-            BtnStop.IsEnabled = true;
+            BtnStartRr.IsEnabled = false;
+            BtnStopRr.IsEnabled = true;
             TxtStatus.Text = "캡처 중…";
             _timer.Start();
         }
 
-        private void StopCapture()
+        // Round Robin 캡처 중지 (미사용)
+        private void StopCaptureRr()
         {
             _timer.Stop();
-            BtnStart.IsEnabled = true;
-            BtnStop.IsEnabled = false;
+            BtnStartRr.IsEnabled = true;
+            BtnStopRr.IsEnabled = false;
             TxtStatus.Text = "대기 중";
         }
 
@@ -494,6 +613,11 @@ namespace KakaoPcLogger
         private void UpdateComposerCount()
         {
             TxtComposerCount.Text = TxtComposer.Text.Length.ToString();
+        }
+
+        private void BtnClear_Click(object sender, RoutedEventArgs e)
+        {
+            TxtLog.Clear();
         }
     }
 }

@@ -69,6 +69,23 @@ namespace KakaoPcLogger.Interop
             return MakeLParam(0, scan);
         }
 
+        [DllImport("user32.dll")] 
+        internal static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")] 
+        internal static extern bool RegisterShellHookWindow(IntPtr hWnd);
+        [DllImport("user32.dll")] 
+        internal static extern bool DeregisterShellHookWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        internal static extern uint RegisterWindowMessage(string lpString);
+
+        [DllImport("user32.dll")] 
+        internal static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
         [StructLayout(LayoutKind.Sequential)]
         public struct CHARRANGE
         {

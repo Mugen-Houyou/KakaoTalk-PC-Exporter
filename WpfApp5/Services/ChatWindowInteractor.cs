@@ -50,14 +50,16 @@ namespace KakaoPcLogger.Services
 
             FocusParent(entry.ParentHwnd);
             Thread.Sleep(30);
-
             ClickTextbox(input);
             Thread.Sleep(10);
-
-            PressKey(input, NativeConstants.VK_A, false);
-            Thread.Sleep(30);
+            PressKey(input, NativeConstants.VK_C, false);
+            Thread.Sleep(10);
             PressKey(input, NativeConstants.VK_BACK, false);
-
+            ClickTextbox(input);
+            Thread.Sleep(10);
+            PressKey(input, NativeConstants.VK_A, false);
+            Thread.Sleep(10);
+            PressKey(input, NativeConstants.VK_BACK, false);
             ClickTextbox(input);
             Thread.Sleep(10);
 
@@ -86,22 +88,24 @@ namespace KakaoPcLogger.Services
 
         private static void SelectAllAndCopy(IntPtr hwnd)
         {
-            PressKeyCombo(hwnd, NativeConstants.VK_CONTROL, NativeConstants.VK_A, false);
             Thread.Sleep(30);
+            PressKeyCombo(hwnd, NativeConstants.VK_CONTROL, NativeConstants.VK_A, false);
+            Thread.Sleep(10);
             PressKeyCombo(hwnd, NativeConstants.VK_CONTROL, NativeConstants.VK_C, false);
         }
 
         private static void DeselectList(IntPtr hwnd)
         {
-            IntPtr point = NativeMethods.MakeLParam(30, 3);
+            IntPtr point = NativeMethods.MakeLParam(5, 30);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
         }
 
         private static void ClickTextbox(IntPtr hwnd)
         {
-            IntPtr point = NativeMethods.MakeLParam(15, 15);
+            IntPtr point = NativeMethods.MakeLParam(15, 20);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
+            Thread.Sleep(10);
             NativeMethods.PostMessage(hwnd, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
         }
 
