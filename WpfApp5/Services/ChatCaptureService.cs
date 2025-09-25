@@ -97,26 +97,36 @@ namespace KakaoPcLogger.Services
 
                 if (_windowInteractor.TryReopenChatWindow(entry.Title, out var reopenWarning))
                 {
-                    const int maxAttempts = 3;
-                    for (int attempt = 0; attempt < maxAttempts && replacementEntry is null; attempt++)
+                    const int maxAttempts = 5;
+                    ChatEntry? reopenedEntry = null;
+
+                    for (int attempt = 0; attempt < maxAttempts; attempt++)
                     {
-                        if (attempt > 0)
+                        if (_windowInteractor.TryFindChatEntryByTitle(entry.Title, entry.ClassName, out var found) && found is not null)
+                        {
+                            reopenedEntry = found;
+                            break;
+                        }
+
+                        if (attempt < maxAttempts - 1)
                         {
                             Thread.Sleep(150);
                         }
-
-                        var scanned = _scanner.Scan(autoInclude: false);
-                        _entryCache = scanned;
-                        _cacheAtUtc = DateTime.UtcNow;
-
-                        replacementEntry = scanned.FirstOrDefault(e =>
-                            string.Equals(e.Title, entry.Title, StringComparison.Ordinal) &&
-                            (e.ParentHwnd != oldParent || e.Hwnd != oldChild));
                     }
 
-                    if (replacementEntry is null)
+                    if (reopenedEntry is null)
                     {
                         warnings.Add($"[FLASH] 재열기 후 채팅방을 찾지 못했습니다: {entry.Title}");
+                    }
+                    else
+                    {
+                        _entryCache = _scanner.Scan(autoInclude: false);
+                        _cacheAtUtc = DateTime.UtcNow;
+
+                        if (reopenedEntry.ParentHwnd != oldParent || reopenedEntry.Hwnd != oldChild)
+                        {
+                            replacementEntry = reopenedEntry;
+                        }
                     }
                 }
                 else if (!string.IsNullOrEmpty(reopenWarning))

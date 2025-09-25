@@ -46,48 +46,56 @@ namespace KakaoPcLogger.Services
 
         public bool TryReopenChatWindow(string chatTitle, out string? warning)
         {
-            warning = null;
-
-            IntPtr kakaoTalk = FindWindowByTitle("KakaoTalk");
-            if (kakaoTalk == IntPtr.Zero)
+            if (!TryGetKakaoTalkSearchControls(out var kakaoTalk, out var edit, out var list, out warning))
             {
-                warning = "[FLASH] 'KakaoTalk' 메인 창을 찾지 못했습니다.";
                 return false;
             }
 
             FocusParent(kakaoTalk);
             Thread.Sleep(30);
 
-            IntPtr edit = FindChildByClass(kakaoTalk, "Edit");
-            if (edit == IntPtr.Zero)
-            {
-                warning = "[FLASH] KakaoTalk 검색창(Edit)을 찾지 못했습니다.";
-                return false;
-            }
-
             NativeMethods.SendMessage(edit, NativeConstants.WM_SETTEXT, IntPtr.Zero, string.Empty);
             Thread.Sleep(20);
             NativeMethods.SendMessage(edit, NativeConstants.WM_SETTEXT, IntPtr.Zero, chatTitle);
             Thread.Sleep(80);
 
-            IntPtr list = FindChildByClass(kakaoTalk, "EVA_VH_ListControl_Dblclk");
-            if (list == IntPtr.Zero)
-            {
-                warning = "[FLASH] KakaoTalk 목록 컨트롤을 찾지 못했습니다.";
-                return false;
-            }
-
-            IntPtr point = NativeMethods.MakeLParam(10, 10);
-            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
-            Thread.Sleep(10);
-            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
-            Thread.Sleep(10);
-            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONDBLCLK, (IntPtr)1, point);
-            Thread.Sleep(10);
-            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
-            Thread.Sleep(200);
+            DoubleClickListEntry(list);
 
             return true;
+        }
+
+        public bool TryFindChatEntryByTitle(string chatTitle, string chatListClass, out ChatEntry? entry)
+        {
+            entry = null;
+
+            NativeMethods.EnumWindows((hTop, _) =>
+            {
+                if (!NativeMethods.IsWindow(hTop))
+                    return true;
+
+                string parentTitle = GetWindowTextSafe(hTop).Trim();
+                if (!string.Equals(parentTitle, chatTitle, StringComparison.Ordinal))
+                    return true;
+
+                IntPtr list = FindChildByClass(hTop, chatListClass);
+                if (list == IntPtr.Zero)
+                    return true;
+
+                NativeMethods.GetWindowThreadProcessId(hTop, out uint rawPid);
+
+                entry = new ChatEntry
+                {
+                    Title = parentTitle,
+                    ParentHwnd = hTop,
+                    Hwnd = list,
+                    ClassName = chatListClass,
+                    Pid = (int)rawPid
+                };
+
+                return false;
+            }, IntPtr.Zero);
+
+            return entry != null;
         }
 
         public bool TrySendMessage(ChatEntry entry, string message, string inputClassName, out string? error)
@@ -292,6 +300,37 @@ namespace KakaoPcLogger.Services
             NativeMethods.AttachThreadInput(currentThread, targetThread, false);
         }
 
+        private static bool TryGetKakaoTalkSearchControls(out IntPtr kakaoTalk, out IntPtr edit, out IntPtr list, out string? warning)
+        {
+            warning = null;
+            kakaoTalk = IntPtr.Zero;
+            edit = IntPtr.Zero;
+            list = IntPtr.Zero;
+
+            kakaoTalk = FindWindowByTitle("KakaoTalk");
+            if (kakaoTalk == IntPtr.Zero)
+            {
+                warning = "[FLASH] 'KakaoTalk' 메인 창을 찾지 못했습니다.";
+                return false;
+            }
+
+            edit = FindChildByClass(kakaoTalk, "Edit");
+            if (edit == IntPtr.Zero)
+            {
+                warning = "[FLASH] KakaoTalk 검색창(Edit)을 찾지 못했습니다.";
+                return false;
+            }
+
+            list = FindChildByClass(kakaoTalk, "EVA_VH_ListControl_Dblclk");
+            if (list == IntPtr.Zero)
+            {
+                warning = "[FLASH] KakaoTalk 목록 컨트롤을 찾지 못했습니다.";
+                return false;
+            }
+
+            return true;
+        }
+
         private static IntPtr FindWindowByTitle(string title)
         {
             IntPtr found = IntPtr.Zero;
@@ -332,6 +371,26 @@ namespace KakaoPcLogger.Services
             }, IntPtr.Zero);
 
             return result;
+        }
+
+        private static string GetWindowTextSafe(IntPtr hWnd)
+        {
+            var sb = new StringBuilder(512);
+            NativeMethods.GetWindowText(hWnd, sb, sb.Capacity);
+            return sb.ToString();
+        }
+
+        private static void DoubleClickListEntry(IntPtr list)
+        {
+            IntPtr point = NativeMethods.MakeLParam(10, 10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONDBLCLK, (IntPtr)1, point);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
+            Thread.Sleep(200);
         }
     }
 }
