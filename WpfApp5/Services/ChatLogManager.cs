@@ -58,5 +58,17 @@ namespace KakaoPcLogger.Services
             text = string.Empty;
             return false;
         }
+
+        public void ReplaceKey(string oldKey, ChatEntry updatedEntry)
+        {
+            if (string.IsNullOrEmpty(oldKey))
+                return;
+
+            if (!_logs.TryGetValue(oldKey, out var sb))
+                return;
+
+            _logs.Remove(oldKey);
+            _logs[GetKey(updatedEntry)] = sb;
+        }
     }
 }

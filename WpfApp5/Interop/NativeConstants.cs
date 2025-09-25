@@ -12,11 +12,13 @@
         internal const int WM_SYSKEYUP = 0x0105;
         internal const int WM_LBUTTONDOWN = 0x0201;
         internal const int WM_LBUTTONUP = 0x0202;
+        internal const int WM_LBUTTONDBLCLK = 0x0203;
 
         internal const int VK_RETURN = 0x0D;
         internal const int VK_CONTROL = 0x11;
         internal const int VK_A = 0x41;
         internal const int VK_C = 0x43;
+        internal const int VK_ESCAPE = 0x1B;
         internal const int VK_BACK = 0x08;   // Backspace key
 
         internal const int GWL_STYLE = -16;

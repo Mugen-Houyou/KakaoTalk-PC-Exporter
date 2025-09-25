@@ -27,6 +27,69 @@ namespace KakaoPcLogger.Services
             DeselectList(entry.Hwnd);
         }
 
+        public bool TryCloseChatWindow(ChatEntry entry, out string? warning)
+        {
+            warning = null;
+
+            if (!NativeMethods.IsWindow(entry.ParentHwnd))
+            {
+                warning = $"[FLASH] 창을 닫을 수 없습니다(무효): {entry.Title}";
+                return false;
+            }
+
+            FocusParent(entry.ParentHwnd);
+            Thread.Sleep(30);
+            PressKey(entry.ParentHwnd, NativeConstants.VK_ESCAPE, false);
+            Thread.Sleep(80);
+            return true;
+        }
+
+        public bool TryReopenChatWindow(string chatTitle, out string? warning)
+        {
+            warning = null;
+
+            IntPtr kakaoTalk = FindWindowByTitle("KakaoTalk");
+            if (kakaoTalk == IntPtr.Zero)
+            {
+                warning = "[FLASH] 'KakaoTalk' 메인 창을 찾지 못했습니다.";
+                return false;
+            }
+
+            FocusParent(kakaoTalk);
+            Thread.Sleep(30);
+
+            IntPtr edit = FindChildByClass(kakaoTalk, "Edit");
+            if (edit == IntPtr.Zero)
+            {
+                warning = "[FLASH] KakaoTalk 검색창(Edit)을 찾지 못했습니다.";
+                return false;
+            }
+
+            NativeMethods.SendMessage(edit, NativeConstants.WM_SETTEXT, IntPtr.Zero, string.Empty);
+            Thread.Sleep(20);
+            NativeMethods.SendMessage(edit, NativeConstants.WM_SETTEXT, IntPtr.Zero, chatTitle);
+            Thread.Sleep(80);
+
+            IntPtr list = FindChildByClass(kakaoTalk, "EVA_VH_ListControl_Dblclk");
+            if (list == IntPtr.Zero)
+            {
+                warning = "[FLASH] KakaoTalk 목록 컨트롤을 찾지 못했습니다.";
+                return false;
+            }
+
+            IntPtr point = NativeMethods.MakeLParam(10, 10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONDOWN, (IntPtr)1, point);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONDBLCLK, (IntPtr)1, point);
+            Thread.Sleep(10);
+            NativeMethods.PostMessage(list, NativeConstants.WM_LBUTTONUP, IntPtr.Zero, point);
+            Thread.Sleep(200);
+
+            return true;
+        }
+
         public bool TrySendMessage(ChatEntry entry, string message, string inputClassName, out string? error)
         {
             if (string.IsNullOrEmpty(message))
@@ -227,6 +290,48 @@ namespace KakaoPcLogger.Services
             NativeMethods.SetKeyboardState(newState);
 
             NativeMethods.AttachThreadInput(currentThread, targetThread, false);
+        }
+
+        private static IntPtr FindWindowByTitle(string title)
+        {
+            IntPtr found = IntPtr.Zero;
+
+            NativeMethods.EnumWindows((hWnd, _) =>
+            {
+                if (!NativeMethods.IsWindow(hWnd))
+                    return true;
+
+                var sb = new StringBuilder(512);
+                NativeMethods.GetWindowText(hWnd, sb, sb.Capacity);
+                if (!string.Equals(sb.ToString(), title, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                found = hWnd;
+                return false;
+            }, IntPtr.Zero);
+
+            return found;
+        }
+
+        private static IntPtr FindChildByClass(IntPtr parent, string className)
+        {
+            IntPtr result = IntPtr.Zero;
+
+            NativeMethods.EnumChildWindows(parent, (hWnd, _) =>
+            {
+                if (!NativeMethods.IsWindow(hWnd))
+                    return true;
+
+                var sb = new StringBuilder(256);
+                NativeMethods.GetClassName(hWnd, sb, sb.Capacity);
+                if (!string.Equals(sb.ToString(), className, StringComparison.Ordinal))
+                    return true;
+
+                result = hWnd;
+                return false;
+            }, IntPtr.Zero);
+
+            return result;
         }
     }
 }
