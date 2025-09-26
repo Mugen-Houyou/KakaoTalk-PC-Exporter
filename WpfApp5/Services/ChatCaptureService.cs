@@ -63,7 +63,7 @@ namespace KakaoPcLogger.Services
             {
                 ChatDatabase.EnsureDatabase(_dbPath);
                 long chatId = ChatDatabase.GetOrCreateChatId(_dbPath, entry.Title);
-                var parsed = ChatParser.ParseRaw(clipboardText);
+                var parsed = ChatParserKo.ParseRaw(clipboardText);
 
                 if (parsed.Count > 0)
                 {
