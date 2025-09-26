@@ -182,7 +182,7 @@ namespace KakaoPcLogger
                 }
 
                 // 실제 캡처
-                CaptureOne(entry);
+                CaptureOne(entry, reopenAfterCapture: true);
 
                 // 성공적으로 캡처했으면 최종 시각 갱신(선반영했지만 성공 타이밍으로 다시 박고 싶다면)
                 _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
@@ -356,9 +356,12 @@ namespace KakaoPcLogger
             }
         }
 
-        private void CaptureOne(ChatEntry entry)
+        private void CaptureOne(ChatEntry entry, bool reopenAfterCapture = false)
         {
-            var result = _captureService.Capture(entry);
+            IntPtr oldParentHwnd = entry.ParentHwnd;
+            string oldLogKey = _chatLogManager.GetKey(entry);
+
+            var result = _captureService.Capture(entry, reopenAfterCapture);
 
             if (!string.IsNullOrEmpty(result.Warning))
             {
@@ -367,6 +370,15 @@ namespace KakaoPcLogger
                 {
                     return;
                 }
+            }
+
+            if (result.ReplacementEntry is not null)
+            {
+                UpdateEntryHandles(entry, result.ReplacementEntry, oldParentHwnd, oldLogKey);
+            }
+            else if (reopenAfterCapture)
+            {
+                _lastCaptureUtcByHwnd.Remove(oldParentHwnd);
             }
 
             if (!string.IsNullOrEmpty(result.DbMessage))
@@ -394,6 +406,29 @@ namespace KakaoPcLogger
             AppendChatLog(entry, $"[#{_captureCount} {now:HH:mm:ss}] --- 캡처 시작 --- [{entry.Title}] {entry.HwndHex}\n");
             AppendChatLog(entry, text.EndsWith("\n", StringComparison.Ordinal) ? text : text + "\n");
             AppendChatLog(entry, $"[#{_captureCount}] --- 캡처 끝 ---\n");
+        }
+
+        private void UpdateEntryHandles(ChatEntry entry, ChatEntry replacement, IntPtr oldParentHwnd, string oldLogKey)
+        {
+            entry.ParentHwnd = replacement.ParentHwnd;
+            entry.Hwnd = replacement.Hwnd;
+            entry.ClassName = replacement.ClassName;
+            entry.Pid = replacement.Pid;
+            entry.Title = replacement.Title;
+
+            _chatLogManager.ReplaceKey(oldLogKey, entry);
+
+            if (_currentViewKey == oldLogKey)
+            {
+                _currentViewKey = _chatLogManager.GetKey(entry);
+                if (_chatLogManager.TryGet(_currentViewKey, out var updatedLog))
+                {
+                    SetLog(updatedLog);
+                }
+            }
+
+            _lastCaptureUtcByHwnd.Remove(oldParentHwnd);
+            _lastCaptureUtcByHwnd[entry.ParentHwnd] = DateTime.UtcNow;
         }
 
         private void AppendChatLog(ChatEntry entry, string line)

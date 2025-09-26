@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using KakaoPcLogger.Data;
 using KakaoPcLogger.Interop;
 using KakaoPcLogger.Models;
@@ -33,7 +34,7 @@ namespace KakaoPcLogger.Services
         }
 
         // 기존 라운드로빈 진입점 (그대로 유지)
-        public ChatCaptureResult Capture(ChatEntry entry)
+        public ChatCaptureResult Capture(ChatEntry entry, bool reopenForFlash = false)
         {
             if (!_windowInteractor.Validate(entry, out var warning))
             {
@@ -58,6 +59,10 @@ namespace KakaoPcLogger.Services
 
             string? dbMessage = null;
             string? dbError = null;
+            var warnings = new List<string>();
+            ChatEntry? replacementEntry = null;
+            IntPtr oldParent = entry.ParentHwnd;
+            IntPtr oldChild = entry.Hwnd;
 
             try
             {
@@ -80,12 +85,64 @@ namespace KakaoPcLogger.Services
                 dbError = $"[DB 오류] {ex.GetType().Name}: {ex.Message}";
             }
 
+            if (reopenForFlash)
+            {
+                if (!_windowInteractor.TryCloseChatWindow(entry, out var closeWarning))
+                {
+                    if (!string.IsNullOrEmpty(closeWarning))
+                    {
+                        warnings.Add(closeWarning);
+                    }
+                }
+
+                if (_windowInteractor.TryReopenChatWindow(entry.Title, out var reopenWarning))
+                {
+                    const int maxAttempts = 5;
+                    ChatEntry? reopenedEntry = null;
+
+                    for (int attempt = 0; attempt < maxAttempts; attempt++)
+                    {
+                        if (_windowInteractor.TryFindChatEntryByTitle(entry.Title, entry.ClassName, out var found) && found is not null)
+                        {
+                            reopenedEntry = found;
+                            break;
+                        }
+
+                        if (attempt < maxAttempts - 1)
+                        {
+                            Thread.Sleep(150);
+                        }
+                    }
+
+                    if (reopenedEntry is null)
+                    {
+                        warnings.Add($"[FLASH] 재열기 후 채팅방을 찾지 못했습니다: {entry.Title}");
+                    }
+                    else
+                    {
+                        _entryCache = _scanner.Scan(autoInclude: false);
+                        _cacheAtUtc = DateTime.UtcNow;
+
+                        if (reopenedEntry.ParentHwnd != oldParent || reopenedEntry.Hwnd != oldChild)
+                        {
+                            replacementEntry = reopenedEntry;
+                        }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(reopenWarning))
+                {
+                    warnings.Add(reopenWarning);
+                }
+            }
+
             return new ChatCaptureResult
             {
                 Success = true,
                 ClipboardText = clipboardText,
                 DbMessage = dbMessage,
-                DbError = dbError
+                DbError = dbError,
+                Warning = warnings.Count > 0 ? string.Join(Environment.NewLine, warnings) : null,
+                ReplacementEntry = replacementEntry
             };
         }
 
@@ -117,7 +174,7 @@ namespace KakaoPcLogger.Services
             }
 
             // 기존 Capture 파이프라인 재사용
-            return Capture(entry);
+            return Capture(entry, reopenForFlash: true);
         }
 
         private ChatEntry? FindEntryByRoot(IntPtr root, bool useCache)
