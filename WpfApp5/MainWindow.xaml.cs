@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using System.Globalization;  // 시간 파싱에 사용
 using WpfApp5.Services;
 
 namespace KakaoPcLogger
@@ -34,13 +35,21 @@ namespace KakaoPcLogger
 
         private TaskbarFlashWatcher? _flashWatcher;
 
+        // 리프레시 서비스
+        private readonly RefreshService _refreshService;
+
+        // 리프레시 작업 수행 시 가드
+        // 리프레시 스케줄러/상태
+        private readonly DispatcherTimer _refreshTimer = new();
+        private DateTime _lastRefreshDate = DateTime.MinValue;   // 하루 1회 실행 제어
+        private volatile bool _refreshInProgress = false;        // 리프레시 중 가드
+
         // 윈도우별 쿨다운/재진입 방지
         private readonly Dictionary<IntPtr, DateTime> _lastCaptureUtcByHwnd = new();
         private readonly HashSet<IntPtr> _inProgress = new();
 
         // 캡처 쿨다운 (필요에 맞게 조정: 5~10초 권장)
         private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(8);
-
 
         public MainWindow()
         {
@@ -91,6 +100,54 @@ namespace KakaoPcLogger
             UpdateSendTargetLabel();
             UpdateComposerCount();
 
+            // === RefreshService 초기화 ===
+            _refreshService = new RefreshService(TargetProcessName, _scanner, new ClipboardService());
+
+            // 로그 연결 (GUI 로그에 그대로 출력)
+            _refreshService.Log += AppendLog;
+
+            // 새 창으로 교체 콜백 (동일 타이틀의 HWND 업데이트)
+            _refreshService.OnReopened += (oldTitle, reopened) =>
+            {
+                for (int i = 0; i < _chats.Count; i++)
+                {
+                    if (string.Equals(_chats[i].Title, oldTitle, StringComparison.Ordinal))
+                    {
+                        _chats[i].ParentHwnd = reopened.ParentHwnd;
+                        _chats[i].Hwnd = reopened.Hwnd;
+                    }
+                }
+            };
+
+            // 사용자가 시간 입력칸을 바꾸면 즉시 반영 (포커스 잃을 때 등)
+            TxtRefreshTime.LostFocus += (_, __) =>
+            {
+                if (!_refreshService.TryParseScheduledTime(TxtRefreshTime.Text))
+                    AppendLog("[리프레시] 시간 파싱 실패. 예: 04:00");
+            };
+
+            // 지금 리프레시 버튼
+            BtnRefreshNow.Click += async (_, __) =>
+            {
+                var titles = GetRefreshTargetTitles();
+                await _refreshService.RunAsync(titles, "사용자 요청");
+            };
+
+            // 스케줄러: 30초마다 HH:mm에 맞으면 실행
+            _refreshTimer.Interval = TimeSpan.FromSeconds(30);
+            _refreshTimer.Tick += async (_, __) =>
+            {
+                // FLASH 방식이 켜진 상태에서만 스케줄 동작 (요구사항: FLASH 한정)
+                if (_flashWatcher is null) return;
+
+                // 선택된 항목(= FLASH 범위)을 타겟으로
+                await _refreshService.TickScheduleAsync(GetRefreshTargetTitles);
+            };
+            _refreshTimer.Start();
+
+            // 초기 스케줄 시간 반영 (텍스트에 값이 있으면)
+            _refreshService.TryParseScheduledTime(TxtRefreshTime.Text);
+
             _timer.Tick += OnTick;
             _timer.Interval = TimeSpan.FromMilliseconds(3000);
 
@@ -120,6 +177,10 @@ namespace KakaoPcLogger
         }
         private void OnFlashSignal(IntPtr hwnd, int code)
         {
+            // 리프레시 작업 중일 경우 무시
+            if (_refreshInProgress)
+                return;
+
             // 같은 창에 대해 과도한 중복 캡처 방지
             var now = DateTime.UtcNow;
 
@@ -268,6 +329,9 @@ namespace KakaoPcLogger
         }
         private void StartCaptureFlash()
         {
+            // 리프레시 관련 최신 텍스트 반영
+            _refreshService?.TryParseScheduledTime(TxtRefreshTime.Text);
+
             BtnStartFlash.IsEnabled = false;
             BtnStopFlash.IsEnabled = true;
 
@@ -420,27 +484,17 @@ namespace KakaoPcLogger
 
         private void AppendLog(string line)
         {
-            if (string.IsNullOrEmpty(line))
+            if (!Dispatcher.CheckAccess())
             {
+                Dispatcher.Invoke(() => AppendLog(line));
                 return;
             }
-
+            if (string.IsNullOrEmpty(line)) return;
             const int maxChars = 1_000_000;
-            if (TxtLog.Text.Length > maxChars)
-            {
-                TxtLog.Clear();
-            }
-
+            if (TxtLog.Text.Length > maxChars) TxtLog.Clear();
             TxtLog.AppendText(line);
-            if (!line.EndsWith("\n", StringComparison.Ordinal))
-            {
-                TxtLog.AppendText(Environment.NewLine);
-            }
-
-            if (ChkAutoScroll.IsChecked == true)
-            {
-                TxtLog.ScrollToEnd();
-            }
+            if (!line.EndsWith("\n", StringComparison.Ordinal)) TxtLog.AppendText(Environment.NewLine);
+            if (ChkAutoScroll.IsChecked == true) TxtLog.ScrollToEnd();
         }
 
         private void SetLog(string text)
@@ -618,6 +672,76 @@ namespace KakaoPcLogger
         private void BtnClear_Click(object sender, RoutedEventArgs e)
         {
             TxtLog.Clear();
+        }
+        private TimeSpan GetScheduledRefreshTime()
+        {
+            // 기본값 04:00
+            var text = (TxtRefreshTime.Text ?? "04:00").Trim();
+            // HH:mm / H:mm 둘 다 허용
+            if (TimeSpan.TryParseExact(text,
+                                       new[] { @"hh\:mm", @"h\:mm" },
+                                       CultureInfo.InvariantCulture,
+                                       out var ts))
+                return ts;
+
+            return new TimeSpan(4, 0, 0);
+        }
+
+        //private async System.Threading.Tasks.Task RunRefreshAsync(string reason)
+        //{
+        //    if (_refreshInProgress) return;       // 동시 실행 금지
+        //    _refreshInProgress = true;
+
+        //    // 버튼/상태 잠금
+        //    try
+        //    {
+        //        // UI 잠금: FLASH/RR 시작 버튼 비활성화, Stop만 남겨둬도 됨
+        //        BtnStartFlash.IsEnabled = false;
+        //        BtnStopFlash.IsEnabled = true;   // 감시는 켠 상태로 두되, 콜백에서 가드가 먹음
+        //        BtnStartRr.IsEnabled = false;
+        //        BtnStopRr.IsEnabled = false;
+
+        //        TxtStatus.Text = $"[리프레시] 진행 중… ({reason})";
+        //        AppendLog($"[리프레시] 시작: {DateTime.Now:yyyy-MM-dd HH:mm:ss} ({reason})");
+
+        //        // --- 실제 리프레시 작업 자리 ---
+        //        // TODO: 여기서 각 채팅방 윈도우를 닫고 다시 여세요.
+        //        // 예시(의사코드):
+        //        // var targets = _scanner.Scan(autoInclude:false);
+        //        // foreach (var chat in targets) {
+        //        //     NativeMethods.PostMessage(chat.ParentHwnd, NativeConstants.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+        //        //     await Task.Delay(200);
+        //        //     // 다시 열기: 좌측 리스트/검색/타이틀 매칭으로 재오픈 기능 구현 예정
+        //        // }
+        //        await System.Threading.Tasks.Task.Delay(500); // 임시: 최소 대기
+        //                                                      // ----------------------------------
+
+        //        _lastRefreshDate = DateTime.Now.Date;
+        //        AppendLog($"[리프레시] 완료");
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        AppendLog($"[리프레시 오류] {ex.GetType().Name}: {ex.Message}");
+        //    }
+        //    finally
+        //    {
+        //        // 버튼/상태 복구
+        //        BtnStartFlash.IsEnabled = (_flashWatcher is null); // 감시 중이 아니면 시작 가능
+        //        BtnStopFlash.IsEnabled = (_flashWatcher is not null);
+
+        //        BtnStartRr.IsEnabled = true;   // RR은 따로
+        //        BtnStopRr.IsEnabled = false;
+
+        //        TxtStatus.Text = (_flashWatcher is not null) ? "FLASH 감시 동작 중" : "대기 중";
+        //        _refreshInProgress = false;
+        //    }
+        //}
+        private IEnumerable<string> GetRefreshTargetTitles()
+        {
+            return _chats
+                .Where(c => c.IsSelected && !string.IsNullOrWhiteSpace(c.Title))
+                .Select(c => c.Title)
+                .Distinct(StringComparer.Ordinal);
         }
     }
 }

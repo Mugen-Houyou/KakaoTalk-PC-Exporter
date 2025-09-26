@@ -23,6 +23,9 @@
         internal const int ES_MULTILINE = 0x0004;
         internal const int ES_READONLY = 0x0800;
 
+        public const int WM_GETTEXTLENGTH = 0x000E;
+        public const int WM_CLEAR = 0x0303;
+
         public const int EM_SETSEL = 0x00B1;  // Edit 계열: 캐럿/선택 설정
         public const uint EM_EXSETSEL = 0x0437;  // wParam=0, lParam=ref CHARRANGE
 

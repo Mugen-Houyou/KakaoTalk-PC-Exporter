@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="KakaoTalk Capture Logger"
-        Width="1004" Height="584"
+        Width="1313" Height="584"
         MinWidth="860" MinHeight="560"
         WindowStartupLocation="CenterScreen"
         Topmost="{Binding IsChecked, ElementName=ChkTopMost}">
@@ -52,6 +52,7 @@
                 <TextBlock Text="폴링(ms):" Style="{StaticResource FieldLabel}"/>
                 <TextBox x:Name="TxtIntervalMs" Width="50" Text="3000"
              ToolTip="캡처 주기(밀리초). 해당 주기마다 창을 번갈아가며 캡처합니다."/>
+                <!-- 자동 새로고침(닫고-다시열기) 스케줄링 -->
 
                 <Separator/>
 
@@ -64,15 +65,6 @@
 
                 <Separator/>
 
-                <!-- FLASH 방식 제어 -->
-                <TextBlock Text="FLASH:" Style="{StaticResource FieldLabel}" Margin="0,0,2,0"/>
-                <Button x:Name="BtnStartFlash" Content="시작" Width="60" Margin="2,0"
-            ToolTip="작업표시줄 FLASH/REDRAW 이벤트 기반 캡처 시작"/>
-                <Button x:Name="BtnStopFlash" Content="중지" Width="60" Margin="2,0"
-            ToolTip="FLASH 기반 캡처 중지" IsEnabled="False"/>
-
-                <Separator/>
-
                 <!-- 라운드 로빈 방식 제어 -->
                 <TextBlock Text="RoundRobin:" Style="{StaticResource FieldLabel}" Margin="0,0,2,0"/>
                 <Button x:Name="BtnStartRr" Content="시작" Width="60" Margin="2,0"
@@ -81,6 +73,20 @@
             ToolTip="라운드로빈 캡처 중지" IsEnabled="False"/>
 
                 <Separator/>
+
+                <!-- FLASH 방식 제어 -->
+                <TextBlock Text="FLASH:" Style="{StaticResource FieldLabel}" Margin="0,0,2,0"/>
+                <Button x:Name="BtnStartFlash" Content="시작" Width="60" Margin="2,0"
+            ToolTip="작업표시줄 FLASH/REDRAW 이벤트 기반 캡처 시작"/>
+                <Button x:Name="BtnStopFlash" Content="중지" Width="60" Margin="2,0"
+            ToolTip="FLASH 기반 캡처 중지" IsEnabled="False"/>
+
+                <TextBlock Text="FLASH 방식 시 리프레시 시각:" Style="{StaticResource FieldLabel}" Margin="4,0,0,0"
+         ToolTip="채팅방 윈도우를 하나씩 닫고 새로이 열어, 결과적으로 모든 채팅방 윈도우들이 새로이 대체됩니다. 이 리프레시 작업을 수행할 시각을 설정합니다." />
+                <TextBox x:Name="TxtRefreshTime" Width="40" Text="04:00"
+         ToolTip="매일 실행 시각(HH:mm). 예: 04:00"/>
+                <Button x:Name="BtnRefreshNow" Content="지금 리프레시" Margin="8,0,0,0"
+        ToolTip="지금 즉시 리프레시를 실행"/>
 
             </ToolBar>
         </ToolBarTray>
