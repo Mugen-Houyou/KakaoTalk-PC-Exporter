@@ -47,7 +47,7 @@ namespace KakaoPcLogger.Parsing
                         Sender = currentSender,
                         LocalTs = currentTs.Value,
                         Content = content,
-                        Order = results.Count
+                        MsgOrder = results.Count
                     });
                 }
 

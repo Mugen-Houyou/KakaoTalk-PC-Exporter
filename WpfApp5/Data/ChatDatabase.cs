@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS messages(
     ts_local    TEXT NOT NULL,
     content     TEXT NOT NULL,
     hash        TEXT,
-    "order"     INTEGER NOT NULL DEFAULT 0
+    msg_order     INTEGER NOT NULL DEFAULT 0
 );
 ";
                 cmd.ExecuteNonQuery();
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS messages(
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = @"
-INSERT OR IGNORE INTO messages(chat_id, sender, ts_local, content, hash, ""order"")
+INSERT OR IGNORE INTO messages(chat_id, sender, ts_local, content, hash, msg_order)
 VALUES ($c, $s, $t, $b, $h, $o);
 ";
 
@@ -104,7 +104,7 @@ VALUES ($c, $s, $t, $b, $h, $o);
                 pT.Value = tsIso;
                 pB.Value = message.Content;
                 pH.Value = hash;
-                pO.Value = message.Order;
+                pO.Value = message.MsgOrder;
 
                 cmd.ExecuteNonQuery();
             }
@@ -115,7 +115,7 @@ VALUES ($c, $s, $t, $b, $h, $o);
         private static void EnsureIndexes(SqliteConnection connection)
         {
             bool hasHashColumn = false;
-            bool hasOrderColumn = false;
+            bool hasMsgOrderColumn = false;
             using (var pragma = connection.CreateCommand())
             {
                 pragma.CommandText = "PRAGMA table_info(messages);";
@@ -128,9 +128,9 @@ VALUES ($c, $s, $t, $b, $h, $o);
                         hasHashColumn = true;
                     }
 
-                    if (string.Equals(columnName, "order", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(columnName, "msg_order", StringComparison.OrdinalIgnoreCase))
                     {
-                        hasOrderColumn = true;
+                        hasMsgOrderColumn = true;
                     }
                 }
             }
@@ -142,10 +142,10 @@ VALUES ($c, $s, $t, $b, $h, $o);
                 alter.ExecuteNonQuery();
             }
 
-            if (!hasOrderColumn)
+            if (!hasMsgOrderColumn)
             {
                 using var alter = connection.CreateCommand();
-                alter.CommandText = "ALTER TABLE messages ADD COLUMN \"order\" INTEGER NOT NULL DEFAULT 0;";
+                alter.CommandText = "ALTER TABLE messages ADD COLUMN msg_order INTEGER NOT NULL DEFAULT 0;";
                 alter.ExecuteNonQuery();
             }
 
