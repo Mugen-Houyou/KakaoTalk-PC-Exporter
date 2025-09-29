@@ -1,0 +1,91 @@
+# REST API Usage Guide
+
+This document describes the lightweight REST interface exposed by **KakaoTalk PC Exporter**. The API is designed for local automation and integrations that need to fetch chat history stored in the application's SQLite database.
+
+## Service lifecycle
+
+- The API service starts automatically when the main WPF application launches. A log entry like `[REST] 서비스가 시작되었습니다.` is appended to the in-app log when the listener is ready.
+- The service is automatically disposed when the main window is closed. No additional action is required from users.
+- By default the listener binds to `http://localhost:5010/`. The prefix can be adjusted in code when constructing `RestApiService` if needed.
+
+> **Note:** The service uses the built-in `HttpListener` class. Running behind a firewall or on a restricted network may require granting URL ACL permissions for the chosen prefix.
+
+## Authentication
+
+The API is intended for local trusted use and does not implement authentication. Do **not** expose the listener to untrusted networks.
+
+## Endpoints
+
+### `GET /messages/{chatTitle}`
+
+Fetches every stored message for the chat room whose title matches `{chatTitle}` exactly (case-sensitive, as stored in the `chats` table).
+
+#### Request
+
+```
+GET http://localhost:5010/messages/%EC%B1%84%ED%8C%85%EB%B0%A9%EC%9D%B4%EB%A6%84%EC%98%88%EC%8B%9C
+Accept: application/json
+```
+
+- URL-encode the chat title when sending the request.
+- Only the `GET` method is supported. Other HTTP verbs return **405 Method Not Allowed**.
+
+#### Successful response
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+[
+  {
+    "chat_room": "채팅방이름예시",
+    "sender": "김민석",
+    "timestamp": "2025-09-26 08:14:00",
+    "order": "0",
+    "content": "안녕하세요 저는 김민석입니다."
+  },
+  {
+    "chat_room": "채팅방이름예시",
+    "sender": "김성원",
+    "timestamp": "2025-09-26 08:15:00",
+    "order": "4",
+    "content": "안녕하세요 저는 김성원입니다."
+  }
+]
+```
+
+- Messages are returned in ascending `msg_order` (and `id` as a tie-breaker) to preserve the original conversation order.
+- `timestamp` is formatted as `yyyy-MM-dd HH:mm:ss` when the stored value can be parsed. Otherwise the raw database value is returned.
+- `order` represents the numeric `msg_order` column, serialized as a string to match the historical export format.
+
+#### Error responses
+
+| Status | Condition | Body |
+| ------ | --------- | ---- |
+| 400 Bad Request | Missing or empty `chatTitle` | `{ "message": "Chat room title is required." }` |
+| 404 Not Found | Chat room title not found in the `chats` table | `{ "message": "Chat room not found." }` |
+| 404 Not Found | Any other URL | `{ "message": "Endpoint not found." }` |
+| 405 Method Not Allowed | HTTP verb other than `GET` | `{ "message": "Only GET is supported." }` |
+| 500 Internal Server Error | Database or unexpected runtime error | `{ "message": "Failed to read messages." }` or `{ "message": "Internal server error." }` |
+
+Error payloads share the same structure: a JSON object with a single `message` property describing the issue.
+
+## Example usage (PowerShell)
+
+```powershell
+# Replace with the exact chat title you want to fetch
+$chatTitle = "채팅방이름예시"
+$encodedTitle = [uri]::EscapeDataString($chatTitle)
+
+Invoke-RestMethod "http://localhost:5010/messages/$encodedTitle"
+```
+
+## Troubleshooting
+
+- **Port already in use:** Ensure nothing else is bound to port `5010`, or change the prefix in `RestApiService` construction.
+- **Access denied when starting the listener:** Run the application with administrator privileges or register the URL ACL via `netsh http add urlacl url=http://+:5010/ user=DOMAIN\\User`.
+- **Empty responses:** Confirm the target chat has been captured and stored in the SQLite database located at `data/kakao_chat_v2.db`.
+
+## Extending the API
+
+To add more endpoints, follow the existing pattern inside `RestApiService.ProcessRequestAsync`. Match the first URL segment, validate inputs, query the database through `Microsoft.Data.Sqlite`, and respond with UTF-8 JSON payloads using the shared serialization options.
