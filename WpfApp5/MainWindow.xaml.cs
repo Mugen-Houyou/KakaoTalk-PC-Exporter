@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -47,6 +48,12 @@ namespace KakaoPcLogger
         // 윈도우별 쿨다운/재진입 방지
         private readonly Dictionary<IntPtr, DateTime> _lastCaptureUtcByHwnd = new();
         private readonly HashSet<IntPtr> _inProgress = new();
+
+        // FLASH 큐 처리용
+        private readonly object _flashQueueLock = new();
+        private readonly Queue<(IntPtr hwnd, int code)> _flashQueue = new();
+        private readonly HashSet<IntPtr> _queuedFlashTargets = new();
+        private bool _isProcessingFlashQueue;
 
         // 캡처 쿨다운 (필요에 맞게 조정: 5~10초 권장)
         private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(8);
@@ -177,6 +184,12 @@ namespace KakaoPcLogger
         }
         private void OnFlashSignal(IntPtr hwnd, int code)
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(() => OnFlashSignal(hwnd, code)));
+                return;
+            }
+
             // 리프레시 작업 중일 경우 리턴
             if (_refreshInProgress)
                 return;
@@ -193,13 +206,65 @@ namespace KakaoPcLogger
                 return;
             }
 
-            // 재진입 방지
-            // 즉, 이미 캡처 중이면 스킵
-            if (_inProgress.Contains(hwnd))
-                return;
+            lock (_flashQueueLock)
+            {
+                // 재진입 방지: 이미 처리 중이거나 큐 대기 중이면 무시
+                if (_inProgress.Contains(hwnd) || _queuedFlashTargets.Contains(hwnd))
+                    return;
 
-            _inProgress.Add(hwnd);
-            _lastCaptureUtcByHwnd[hwnd] = now; // 먼저 찍어 중복 트리거 억제
+                _flashQueue.Enqueue((hwnd, code));
+                _queuedFlashTargets.Add(hwnd);
+                _lastCaptureUtcByHwnd[hwnd] = now; // 먼저 찍어 중복 트리거 억제
+
+                if (!_isProcessingFlashQueue)
+                {
+                    _isProcessingFlashQueue = true;
+                    Dispatcher.BeginInvoke(new Action(ProcessFlashQueue));
+                }
+            }
+        }
+
+        private void ProcessFlashQueue()
+        {
+            while (true)
+            {
+                (IntPtr hwnd, int code) workItem;
+
+                lock (_flashQueueLock)
+                {
+                    if (_flashQueue.Count == 0)
+                    {
+                        _isProcessingFlashQueue = false;
+                        return;
+                    }
+
+                    workItem = _flashQueue.Dequeue();
+                    _queuedFlashTargets.Remove(workItem.hwnd);
+                    _inProgress.Add(workItem.hwnd);
+                }
+
+                try
+                {
+                    HandleFlashCapture(workItem.hwnd, workItem.code);
+                }
+                finally
+                {
+                    lock (_flashQueueLock)
+                    {
+                        _inProgress.Remove(workItem.hwnd);
+                    }
+                }
+            }
+        }
+
+        private void HandleFlashCapture(IntPtr hwnd, int code)
+        {
+            _ = code; // 현재는 FLASH/RR 코드 구분 없이 hwnd 기반 처리
+
+            if (_refreshInProgress)
+            {
+                return;
+            }
 
             try
             {
@@ -252,10 +317,6 @@ namespace KakaoPcLogger
             catch (Exception ex)
             {
                 AppendLog($"[FLASH 오류] {ex.GetType().Name}: {ex.Message}");
-            }
-            finally
-            {
-                _inProgress.Remove(hwnd);
             }
         }
 
@@ -348,9 +409,22 @@ namespace KakaoPcLogger
             _flashWatcher?.Dispose();
             _flashWatcher = null;
 
+            ClearFlashQueue();
+
             BtnStartFlash.IsEnabled = true;
             BtnStopFlash.IsEnabled = false;
             TxtStatus.Text = "감시 중지";
+        }
+
+        private void ClearFlashQueue()
+        {
+            lock (_flashQueueLock)
+            {
+                _flashQueue.Clear();
+                _queuedFlashTargets.Clear();
+                _inProgress.Clear();
+                _isProcessingFlashQueue = false;
+            }
         }
 
         // Round Robin 캡처 (미사용)
