@@ -94,17 +94,75 @@ VALUES ($c, $s, $t, $b, $h, $o);
 
             cmd.Parameters.AddRange(new[] { pC, pS, pT, pB, pH, pO });
 
+            using var nextOrderCmd = conn.CreateCommand();
+            nextOrderCmd.Transaction = tx;
+            nextOrderCmd.CommandText = @"
+SELECT MAX(msg_order)
+FROM messages
+WHERE chat_id = $c AND sender = $s AND ts_local = $t AND content = $b;
+";
+
+            var qC = nextOrderCmd.CreateParameter(); qC.ParameterName = "$c";
+            var qS = nextOrderCmd.CreateParameter(); qS.ParameterName = "$s";
+            var qT = nextOrderCmd.CreateParameter(); qT.ParameterName = "$t";
+            var qB = nextOrderCmd.CreateParameter(); qB.ParameterName = "$b";
+
+            nextOrderCmd.Parameters.AddRange(new[] { qC, qS, qT, qB });
+
+            var nextOrderCache = new Dictionary<(string Sender, string Ts, string Content), int>();
+
             foreach (var message in messages)
             {
                 string tsIso = message.LocalTs.ToString("yyyy-MM-ddTHH:mm:ss");
-                string hash = ComputeHash(chatId, message.Sender, tsIso, message.Content);
+                string sender = message.Sender ?? string.Empty;
+                string content = message.Content ?? string.Empty;
+
+                var key = (Sender: sender, Ts: tsIso, Content: content);
+
+                int msgOrder;
+                if (!nextOrderCache.TryGetValue(key, out var nextAvailableOrder))
+                {
+                    qC.Value = chatId;
+                    qS.Value = sender;
+                    qT.Value = tsIso;
+                    qB.Value = content;
+
+                    var scalar = nextOrderCmd.ExecuteScalar();
+                    int maxOrder;
+                    if (scalar == null || scalar == DBNull.Value)
+                    {
+                        maxOrder = -1;
+                    }
+                    else if (scalar is long l)
+                    {
+                        maxOrder = checked((int)l);
+                    }
+                    else if (scalar is int i)
+                    {
+                        maxOrder = i;
+                    }
+                    else
+                    {
+                        maxOrder = Convert.ToInt32(Convert.ToString(scalar, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+                    }
+
+                    msgOrder = maxOrder + 1;
+                }
+                else
+                {
+                    msgOrder = nextAvailableOrder;
+                }
+
+                nextOrderCache[key] = msgOrder + 1;
+
+                string hash = ComputeHash(chatId, sender, tsIso, content, msgOrder);
 
                 pC.Value = chatId;
-                pS.Value = message.Sender;
+                pS.Value = sender;
                 pT.Value = tsIso;
-                pB.Value = message.Content;
+                pB.Value = content;
                 pH.Value = hash;
-                pO.Value = message.MsgOrder;
+                pO.Value = msgOrder;
 
                 cmd.ExecuteNonQuery();
             }
@@ -159,9 +217,13 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts_local);
             }
         }
 
-        private static string ComputeHash(long chatId, string sender, string tsLocalIso, string content)
+        private static string ComputeHash(long chatId, string sender, string tsLocalIso, string content, int msgOrder)
         {
-            string input = chatId.ToString(CultureInfo.InvariantCulture) + "\n" + (sender ?? string.Empty) + "\n" + tsLocalIso + "\n" + (content ?? string.Empty);
+            string input = chatId.ToString(CultureInfo.InvariantCulture)
+                + "\n" + (sender ?? string.Empty)
+                + "\n" + tsLocalIso
+                + "\n" + (content ?? string.Empty)
+                + "\n" + msgOrder.ToString(CultureInfo.InvariantCulture);
             using var sha = SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
             var sb = new StringBuilder(bytes.Length * 2);
