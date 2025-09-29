@@ -166,10 +166,11 @@ namespace KakaoPcLogger.Services
                     //System.Windows.Clipboard.SetText(title);
                     TryWriteText(title);
                     SendCtrlV();
-                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                    await Task.Delay(750, ct).ConfigureAwait(false);
 
                     // 3-5) (_openClickX, _openClickY) 더블클릭
-                    await DoubleClickClientAsync(main, _openClickX, _openClickY, ct).ConfigureAwait(false);
+                    //await DoubleClickClientAsync(main, _openClickX, _openClickY, ct).ConfigureAwait(false);
+                    ChatWindowInteractor.PressEnter(_lastFocusedTextbox);
 
                     // 3-6) 새 창 타이틀 확인
                     var reopened = await WaitChatByTitleAsync(title, _scanTimeout, ct).ConfigureAwait(false);

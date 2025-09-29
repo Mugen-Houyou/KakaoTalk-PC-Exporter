@@ -177,7 +177,7 @@ namespace KakaoPcLogger.Services
             return normalized.Replace("\n", "\r\n");
         }
 
-        private static void PressEnter(IntPtr hwnd)
+        internal static void PressEnter(IntPtr hwnd)
         {
             if (!NativeMethods.IsWindow(hwnd))
                 return;

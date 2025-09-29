@@ -177,10 +177,11 @@ namespace KakaoPcLogger
         }
         private void OnFlashSignal(IntPtr hwnd, int code)
         {
-            // 리프레시 작업 중일 경우 무시
+            // 리프레시 작업 중일 경우 리턴
             if (_refreshInProgress)
                 return;
 
+            // 쿨다운/재진입 방지
             // 같은 창에 대해 과도한 중복 캡처 방지
             var now = DateTime.UtcNow;
 
