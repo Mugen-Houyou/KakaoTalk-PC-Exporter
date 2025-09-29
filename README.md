@@ -32,7 +32,7 @@ WPF GUI 앱으로, Windows PC 카카오톡 채팅방의 메시지를 주기적�
 - `data/kakao_chat.db`  
   - `chats` : 채팅방 메타정보
   - `messages` : 메시지(`sender`, `ts_local`, `content`, `hash`)
-- `hash = SHA256(ts_local + "\n" + content)`  
+- `hash = SHA256(chat_id + "\n" + sender + "\n" + ts_local + "\n" + content)`
   → `UNIQUE(chat_id, hash)` 로 중복 저장 방지
 
 ---

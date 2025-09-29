@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -37,7 +38,8 @@ CREATE TABLE IF NOT EXISTS messages(
     sender      TEXT NOT NULL,
     ts_local    TEXT NOT NULL,
     content     TEXT NOT NULL,
-    hash        TEXT
+    hash        TEXT,
+    "order"     INTEGER NOT NULL DEFAULT 0
 );
 ";
                 cmd.ExecuteNonQuery();
@@ -79,8 +81,8 @@ CREATE TABLE IF NOT EXISTS messages(
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = @"
-INSERT OR IGNORE INTO messages(chat_id, sender, ts_local, content, hash)
-VALUES ($c, $s, $t, $b, $h);
+INSERT OR IGNORE INTO messages(chat_id, sender, ts_local, content, hash, ""order"")
+VALUES ($c, $s, $t, $b, $h, $o);
 ";
 
             var pC = cmd.CreateParameter(); pC.ParameterName = "$c";
@@ -88,19 +90,21 @@ VALUES ($c, $s, $t, $b, $h);
             var pT = cmd.CreateParameter(); pT.ParameterName = "$t";
             var pB = cmd.CreateParameter(); pB.ParameterName = "$b";
             var pH = cmd.CreateParameter(); pH.ParameterName = "$h";
+            var pO = cmd.CreateParameter(); pO.ParameterName = "$o";
 
-            cmd.Parameters.AddRange(new[] { pC, pS, pT, pB, pH });
+            cmd.Parameters.AddRange(new[] { pC, pS, pT, pB, pH, pO });
 
             foreach (var message in messages)
             {
                 string tsIso = message.LocalTs.ToString("yyyy-MM-ddTHH:mm:ss");
-                string hash = ComputeHash(tsIso, message.Content);
+                string hash = ComputeHash(chatId, message.Sender, tsIso, message.Content);
 
                 pC.Value = chatId;
                 pS.Value = message.Sender;
                 pT.Value = tsIso;
                 pB.Value = message.Content;
                 pH.Value = hash;
+                pO.Value = message.Order;
 
                 cmd.ExecuteNonQuery();
             }
@@ -111,16 +115,22 @@ VALUES ($c, $s, $t, $b, $h);
         private static void EnsureIndexes(SqliteConnection connection)
         {
             bool hasHashColumn = false;
+            bool hasOrderColumn = false;
             using (var pragma = connection.CreateCommand())
             {
                 pragma.CommandText = "PRAGMA table_info(messages);";
                 using var reader = pragma.ExecuteReader();
                 while (reader.Read())
                 {
-                    if (string.Equals(reader.GetString(1), "hash", StringComparison.OrdinalIgnoreCase))
+                    var columnName = reader.GetString(1);
+                    if (string.Equals(columnName, "hash", StringComparison.OrdinalIgnoreCase))
                     {
                         hasHashColumn = true;
-                        break;
+                    }
+
+                    if (string.Equals(columnName, "order", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasOrderColumn = true;
                     }
                 }
             }
@@ -129,6 +139,13 @@ VALUES ($c, $s, $t, $b, $h);
             {
                 using var alter = connection.CreateCommand();
                 alter.CommandText = "ALTER TABLE messages ADD COLUMN hash TEXT;";
+                alter.ExecuteNonQuery();
+            }
+
+            if (!hasOrderColumn)
+            {
+                using var alter = connection.CreateCommand();
+                alter.CommandText = "ALTER TABLE messages ADD COLUMN \"order\" INTEGER NOT NULL DEFAULT 0;";
                 alter.ExecuteNonQuery();
             }
 
@@ -142,9 +159,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts_local);
             }
         }
 
-        private static string ComputeHash(string tsLocalIso, string content)
+        private static string ComputeHash(long chatId, string sender, string tsLocalIso, string content)
         {
-            string input = tsLocalIso + "\n" + content;
+            string input = chatId.ToString(CultureInfo.InvariantCulture) + "\n" + (sender ?? string.Empty) + "\n" + tsLocalIso + "\n" + (content ?? string.Empty);
             using var sha = SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
             var sb = new StringBuilder(bytes.Length * 2);
