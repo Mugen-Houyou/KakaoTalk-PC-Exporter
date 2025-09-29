@@ -27,6 +27,7 @@ namespace KakaoPcLogger
         private readonly ChatWindowInteractor _windowInteractor = new();
         private readonly ChatCaptureService _captureService;
         private readonly ChatSendService _sendService;
+        private readonly RestApiService? _restApiService;
         private readonly string _dbPath;
 
         private long _captureCount;
@@ -65,6 +66,20 @@ namespace KakaoPcLogger
             _dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "kakao_chat_v2.db");
             _captureService = new ChatCaptureService(_windowInteractor, new ClipboardService(), _dbPath, _scanner);
             _sendService = new ChatSendService(_windowInteractor);
+
+            RestApiService? restApiService = null;
+            try
+            {
+                restApiService = new RestApiService("http://localhost:5010/", _dbPath);
+                restApiService.Log += AppendLog;
+                restApiService.Start();
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[REST] 서비스 시작 실패: {ex.Message}");
+            }
+
+            _restApiService = restApiService;
 
             LvChats.ItemsSource = _chats;
             LvChats.SelectionChanged += OnChatSelectionChanged;
@@ -161,6 +176,12 @@ namespace KakaoPcLogger
             LvChats.MouseDoubleClick += OnChatDoubleClick;
 
             ScanChats();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            _restApiService?.Dispose();
         }
 
         private void OnChatDoubleClick(object sender, MouseButtonEventArgs e)
