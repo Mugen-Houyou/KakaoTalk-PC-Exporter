@@ -43,8 +43,8 @@ namespace KakaoPcLogger.Services
             ScheduledTime = new TimeSpan(4, 0, 0); // 04:00 기본
         }
 
-        /// <summary> 리프레시 진행 중 여부(외부에서 FLASH 가드 등에 사용). </summary>
-        public bool IsRunning => _inProgress;
+        ///// <summary> 리프레시 진행 중 여부(외부에서 FLASH 가드 등에 사용). </summary>
+        //public bool IsRunning => _inProgress;
 
         /// <summary> 매일 실행 시각(HH:mm). </summary>
         public TimeSpan ScheduledTime { get; private set; }
