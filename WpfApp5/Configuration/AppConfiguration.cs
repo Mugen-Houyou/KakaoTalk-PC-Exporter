@@ -6,8 +6,11 @@ namespace WpfApp5.Configuration
 {
     public sealed class AppConfiguration
     {
+        private const string DefaultWebhookUrl = "http://localhost:8080/";
+
         public DatabaseConfiguration Database { get; init; } = new();
         public RestApiConfiguration RestApi { get; init; } = new();
+        public WebhookConfiguration Webhook { get; init; } = new();
 
         public static AppConfiguration Load(string baseDirectory)
         {
@@ -37,6 +40,7 @@ namespace WpfApp5.Configuration
 
             config.Database.Path = ResolveDatabasePath(baseDirectory, config.Database.Path);
             config.RestApi.Prefix = ResolveRestApiPrefix(config.RestApi.Prefix);
+            config.Webhook.MessageUpdateUrl = NormalizeWebhookUrl(config.Webhook.MessageUpdateUrl);
 
             return config;
         }
@@ -61,6 +65,21 @@ namespace WpfApp5.Configuration
                 ? "http://localhost:5010/"
                 : configuredPrefix;
         }
+
+        private static string NormalizeWebhookUrl(string? configuredUrl)
+        {
+            if (string.IsNullOrWhiteSpace(configuredUrl))
+            {
+                return DefaultWebhookUrl;
+            }
+
+            if (Uri.TryCreate(configuredUrl, UriKind.Absolute, out var uri))
+            {
+                return uri.ToString();
+            }
+
+            return DefaultWebhookUrl;
+        }
     }
 
     public sealed class DatabaseConfiguration
@@ -71,5 +90,10 @@ namespace WpfApp5.Configuration
     public sealed class RestApiConfiguration
     {
         public string? Prefix { get; set; }
+    }
+
+    public sealed class WebhookConfiguration
+    {
+        public string? MessageUpdateUrl { get; set; }
     }
 }

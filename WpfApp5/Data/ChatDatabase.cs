@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS messages(
             }
         }
 
-        public static void SaveMessages(string dbPath, long chatId, IEnumerable<ParsedMessage> messages)
+        public static IReadOnlyList<SavedMessageInfo> SaveMessages(string dbPath, long chatId, IEnumerable<ParsedMessage> messages)
         {
             using var conn = new SqliteConnection($"Data Source={dbPath}");
             conn.Open();
@@ -110,6 +110,7 @@ WHERE chat_id = $c AND sender = $s AND ts_local = $t AND content = $b;
             nextOrderCmd.Parameters.AddRange(new[] { qC, qS, qT, qB });
 
             var nextOrderCache = new Dictionary<(string Sender, string Ts, string Content), int>();
+            var savedMessages = new List<SavedMessageInfo>();
 
             foreach (var message in messages)
             {
@@ -165,10 +166,22 @@ WHERE chat_id = $c AND sender = $s AND ts_local = $t AND content = $b;
                 pH.Value = hash;
                 pO.Value = msgOrder;
 
-                cmd.ExecuteNonQuery();
+                var affected = cmd.ExecuteNonQuery();
+                if (affected > 0)
+                {
+                    savedMessages.Add(new SavedMessageInfo
+                    {
+                        Sender = sender,
+                        LocalTs = message.LocalTs,
+                        Content = content,
+                        MsgOrder = msgOrder
+                    });
+                }
             }
 
             tx.Commit();
+
+            return savedMessages;
         }
 
         private static void EnsureIndexes(SqliteConnection connection)
