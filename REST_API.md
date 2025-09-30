@@ -10,7 +10,7 @@ This document describes the lightweight REST interface exposed by **KakaoTalk PC
 - Multiple hostnames can be registered simultaneously by either providing a string array under `RestApi:Hosts` or by separating values with commas in `RestApi:Host` (for example: `"localhost", "192.168.0.123", "mytesthost.com"`). Each hostname may optionally include a custom port (e.g. `"mytesthost.com:8080"`); if omitted, the shared `RestApi:Port` value is used.
 - Flash 캡처가 새로운 메시지를 저장할 때 애플리케이션은 기본적으로 `http://localhost:8080/` 으로 Webhook 알림을 발송한다. 다른 서버로 전달하고 싶다면 `appsettings.json`의 `Webhook:MessageUpdateUrl` 값을 수정하면 된다.
 
-> **Note:** The service uses the built-in `HttpListener` class. Running behind a firewall or on a restricted network may require granting URL ACL permissions for the chosen prefix.
+> **Note:** The service uses the built-in `HttpListener` class. Running behind a firewall or on a restricted network may require granting URL ACL permissions for the chosen prefix. 자세한 가이드는 [`HttpListener_URLACL.md`](HttpListener_URLACL.md)를 참고하세요.
 
 ## Authentication
 
