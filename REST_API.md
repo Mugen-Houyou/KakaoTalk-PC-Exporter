@@ -6,7 +6,7 @@ This document describes the lightweight REST interface exposed by **KakaoTalk PC
 
 - The API service starts automatically when the main WPF application launches. A log entry like `[REST] 서비스가 시작되었습니다.` is appended to the in-app log when the listener is ready.
 - The service is automatically disposed when the main window is closed. No additional action is required from users.
-- By default the listener binds to `http://localhost:5010/`. You can change the host or port without recompiling by editing `appsettings.json` (`RestApi:Host`, `RestApi:Port`). Set `RestApi:UseHttps` to `true` once the appropriate HTTPS certificate binding has been configured on the machine.
+- By default the listener binds to `http://localhost:5010/`. You can change the host or port without recompiling by editing `appsettings.json` (`RestApi:Host`, `RestApi:Port`). To listen on every network interface without elevating URL ACL permissions, set `RestApi:AllowAnyIpAddress` to `true`, which internally binds to `http://0.0.0.0:<port>/`. Set `RestApi:UseHttps` to `true` once the appropriate HTTPS certificate binding has been configured on the machine.
 - Flash 캡처가 새로운 메시지를 저장할 때 애플리케이션은 기본적으로 `http://localhost:8080/` 으로 Webhook 알림을 발송한다. 다른 서버로 전달하고 싶다면 `appsettings.json`의 `Webhook:MessageUpdateUrl` 값을 수정하면 된다.
 
 > **Note:** The service uses the built-in `HttpListener` class. Running behind a firewall or on a restricted network may require granting URL ACL permissions for the chosen prefix.
