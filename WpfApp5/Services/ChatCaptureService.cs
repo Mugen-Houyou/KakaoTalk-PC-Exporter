@@ -58,6 +58,7 @@ namespace KakaoPcLogger.Services
 
             string? dbMessage = null;
             string? dbError = null;
+            IReadOnlyList<SavedMessage> newlySaved = Array.Empty<SavedMessage>();
 
             try
             {
@@ -67,8 +68,16 @@ namespace KakaoPcLogger.Services
 
                 if (parsed.Count > 0)
                 {
-                    ChatDatabase.SaveMessages(_dbPath, chatId, parsed);
-                    dbMessage = $"[DB] 저장됨: {parsed.Count}건 ({entry.Title})\n";
+                    newlySaved = ChatDatabase.SaveMessages(_dbPath, chatId, parsed);
+                    int insertedCount = newlySaved.Count;
+                    if (insertedCount > 0)
+                    {
+                        dbMessage = $"[DB] 저장됨: {insertedCount}건 ({entry.Title})\\n";
+                    }
+                    else
+                    {
+                        dbMessage = $"[DB] 신규 저장 없음 ({entry.Title})\\n";
+                    }
                 }
                 else
                 {
@@ -85,7 +94,8 @@ namespace KakaoPcLogger.Services
                 Success = true,
                 ClipboardText = clipboardText,
                 DbMessage = dbMessage,
-                DbError = dbError
+                DbError = dbError,
+                NewMessages = newlySaved
             };
         }
 

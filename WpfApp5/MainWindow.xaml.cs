@@ -28,6 +28,7 @@ namespace KakaoPcLogger
         private readonly ChatCaptureService _captureService;
         private readonly ChatSendService _sendService;
         private readonly RestApiService? _restApiService;
+        private readonly WebhookNotificationService _webhookService;
         private readonly string _dbPath;
 
         private long _captureCount;
@@ -66,6 +67,23 @@ namespace KakaoPcLogger
             _dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "kakao_chat_v2.db");
             _captureService = new ChatCaptureService(_windowInteractor, new ClipboardService(), _dbPath, _scanner);
             _sendService = new ChatSendService(_windowInteractor);
+
+            var (webhookEndpoint, webhookSource, webhookError) = ResolveWebhookEndpoint();
+            _webhookService = new WebhookNotificationService(webhookEndpoint, AppendLog);
+            if (!string.IsNullOrEmpty(webhookError))
+            {
+                AppendLog(webhookError);
+            }
+
+            if (webhookEndpoint is not null)
+            {
+                string sourceText = string.IsNullOrEmpty(webhookSource) ? "(수동 설정)" : webhookSource;
+                AppendLog($"[Webhook] 엔드포인트 사용: {webhookEndpoint} ← {sourceText}");
+            }
+            else
+            {
+                AppendLog("[Webhook] 엔드포인트가 설정되지 않아 전송 기능이 비활성화되었습니다.");
+            }
 
             RestApiService? restApiService = null;
             try
@@ -182,6 +200,7 @@ namespace KakaoPcLogger
         {
             base.OnClosed(e);
             _restApiService?.Dispose();
+            _webhookService.Dispose();
         }
 
         private void OnChatDoubleClick(object sender, MouseButtonEventArgs e)
@@ -330,11 +349,14 @@ namespace KakaoPcLogger
                 }
 
                 // 실제 캡처
-                CaptureOne(entry);
+                var result = CaptureOne(entry, triggeredByFlash: true);
 
                 // 성공적으로 캡처했으면 최종 시각 갱신(선반영했지만 성공 타이밍으로 다시 박고 싶다면)
-                _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
-            }
+                if (result?.Success == true)
+                {
+                    _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
+                }
+                }
             catch (Exception ex)
             {
                 AppendLog($"[FLASH 오류] {ex.GetType().Name}: {ex.Message}");
@@ -516,7 +538,7 @@ namespace KakaoPcLogger
             }
         }
 
-        private void CaptureOne(ChatEntry entry)
+        private ChatCaptureResult? CaptureOne(ChatEntry entry, bool triggeredByFlash = false)
         {
             var result = _captureService.Capture(entry);
 
@@ -525,7 +547,7 @@ namespace KakaoPcLogger
                 AppendLog(result.Warning);
                 if (!result.Success)
                 {
-                    return;
+                    return result;
                 }
             }
 
@@ -541,7 +563,7 @@ namespace KakaoPcLogger
 
             if (!result.Success)
             {
-                return;
+                return result;
             }
 
             string text = result.ClipboardText ?? string.Empty;
@@ -554,6 +576,13 @@ namespace KakaoPcLogger
             AppendChatLog(entry, $"[#{_captureCount} {now:HH:mm:ss}] --- 캡처 시작 --- [{entry.Title}] {entry.HwndHex}\n");
             AppendChatLog(entry, text.EndsWith("\n", StringComparison.Ordinal) ? text : text + "\n");
             AppendChatLog(entry, $"[#{_captureCount}] --- 캡처 끝 ---\n");
+
+            if (triggeredByFlash && result.NewMessages.Count > 0)
+            {
+                _ = _webhookService.NotifyNewMessagesAsync(entry.Title, result.NewMessages);
+            }
+
+            return result;
         }
 
         private void AppendChatLog(ChatEntry entry, string line)
@@ -722,6 +751,37 @@ namespace KakaoPcLogger
         {
             TxtComposer.Clear();
             TxtComposer.Focus();
+        }
+
+        private static (Uri? Endpoint, string? Source, string? Error) ResolveWebhookEndpoint()
+        {
+            string? envValue = Environment.GetEnvironmentVariable("KAKAO_EXPORTER_WEBHOOK_URL");
+            if (!string.IsNullOrWhiteSpace(envValue))
+            {
+                if (Uri.TryCreate(envValue, UriKind.Absolute, out var envUri))
+                {
+                    return (envUri, "환경 변수 KAKAO_EXPORTER_WEBHOOK_URL", null);
+                }
+
+                return (null, null, "[Webhook] 환경 변수 KAKAO_EXPORTER_WEBHOOK_URL 값을 URI로 해석하지 못했습니다.");
+            }
+
+            string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "webhook-endpoint.txt");
+            if (File.Exists(configPath))
+            {
+                string fileValue = File.ReadAllText(configPath).Trim();
+                if (!string.IsNullOrEmpty(fileValue))
+                {
+                    if (Uri.TryCreate(fileValue, UriKind.Absolute, out var fileUri))
+                    {
+                        return (fileUri, $"파일 {configPath}", null);
+                    }
+
+                    return (null, null, $"[Webhook] 파일 {configPath}의 내용을 URI로 해석하지 못했습니다.");
+                }
+            }
+
+            return (null, null, null);
         }
 
         private void OnComposerTextChanged(object sender, TextChangedEventArgs e)

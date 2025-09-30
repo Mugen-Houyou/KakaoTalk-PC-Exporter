@@ -89,3 +89,36 @@ Invoke-RestMethod "http://localhost:5010/messages/$encodedTitle"
 ## Extending the API
 
 To add more endpoints, follow the existing pattern inside `RestApiService.ProcessRequestAsync`. Match the first URL segment, validate inputs, query the database through `Microsoft.Data.Sqlite`, and respond with UTF-8 JSON payloads using the shared serialization options.
+
+## Outgoing webhooks
+
+When the application runs in **FLASH** capture mode, every newly persisted chat message is forwarded to a remote webhook for downstream automation. Each message generates a separate `POST` request with the following shape:
+
+```
+POST /api/webhook/message-update
+Content-Type: application/json; charset=utf-8
+
+{
+  "chatRoom": "박주영",
+  "sender": "박주영",
+  "timestamp": "2025-09-29 10:30:00",
+  "order": 1,
+  "content": "새로운 메시지"
+}
+```
+
+- `chatRoom` is the chat room title from the capture UI.
+- `timestamp` is formatted as `yyyy-MM-dd HH:mm:ss` in the local time zone.
+- `order` equals the numeric `msg_order` (`MsgOrder`) from the SQLite database.
+- `content` contains the raw message text.
+
+> **Important:** Messages are only sent when at least one new row is saved to the local database. Historical entries that were already stored are skipped.
+
+### Configuring the webhook endpoint
+
+Set the target URL through one of the following mechanisms:
+
+1. **Environment variable** – Define `KAKAO_EXPORTER_WEBHOOK_URL` before launching the WPF application. This takes precedence over all other sources.
+2. **Configuration file** – Create a `webhook-endpoint.txt` file next to the executable and place the full URL inside. The file is used when the environment variable is absent.
+
+If neither source is provided, webhook delivery is silently disabled after a single log message explaining the missing endpoint. Invalid URLs from either source are reported in the in-app log and no requests are sent until the value is corrected.
