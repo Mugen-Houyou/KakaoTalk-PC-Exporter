@@ -62,13 +62,13 @@ namespace KakaoPcLogger.Services
         public event Action<string, ChatEntry>? OnReopened;
 
         /// <summary>
-        /// 스케줄 시각 파싱. "HH:mm" / "H:mm" 허용.
+        /// 스케줄 시각 파싱. "HH:mm"만 허용.
         /// </summary>
         public bool TryParseScheduledTime(string text)
         {
             text = (text ?? string.Empty).Trim();
             if (TimeSpan.TryParseExact(text,
-                                       new[] { @"hh\:mm", @"h\:mm" },
+                                       new[] { @"hh\:mm" },
                                        System.Globalization.CultureInfo.InvariantCulture,
                                        out var ts))
             {
