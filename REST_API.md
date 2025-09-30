@@ -7,6 +7,7 @@ This document describes the lightweight REST interface exposed by **KakaoTalk PC
 - The API service starts automatically when the main WPF application launches. A log entry like `[REST] 서비스가 시작되었습니다.` is appended to the in-app log when the listener is ready.
 - The service is automatically disposed when the main window is closed. No additional action is required from users.
 - By default the listener binds to `http://localhost:5010/`. The prefix can be adjusted in code when constructing `RestApiService` if needed.
+- Flash 캡처가 새로운 메시지를 저장할 때 애플리케이션은 기본적으로 `http://localhost:8080/` 으로 Webhook 알림을 발송한다. 다른 서버로 전달하고 싶다면 `appsettings.json`의 `Webhook:MessageUpdateUrl` 값을 수정하면 된다.
 
 > **Note:** The service uses the built-in `HttpListener` class. Running behind a firewall or on a restricted network may require granting URL ACL permissions for the chosen prefix.
 
@@ -89,3 +90,22 @@ Invoke-RestMethod "http://localhost:5010/messages/$encodedTitle"
 ## Extending the API
 
 To add more endpoints, follow the existing pattern inside `RestApiService.ProcessRequestAsync`. Match the first URL segment, validate inputs, query the database through `Microsoft.Data.Sqlite`, and respond with UTF-8 JSON payloads using the shared serialization options.
+
+## Webhook notifications
+
+FLASH 방식 캡처로 DB에 새 메시지가 저장되면 각 메시지에 대해 `Webhook:MessageUpdateUrl`로 POST 요청이 전송된다. 기본 URL은 `http://localhost:8080/`이며 다음과 같은 JSON 페이로드를 사용한다.
+
+```
+POST /api/webhook/message-update
+Content-Type: application/json; charset=utf-8
+
+{
+  "chatRoom": "박주영",
+  "sender": "박주영",
+  "timestamp": "2025-09-29 10:30:00",
+  "order": 1,
+  "content": "새로운 메시지"
+}
+```
+
+타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:MessageUpdateUrl` 값을 원하는 절대 URL로 수정하면 된다.

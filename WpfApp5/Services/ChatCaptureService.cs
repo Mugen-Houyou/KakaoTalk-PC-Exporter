@@ -58,6 +58,7 @@ namespace KakaoPcLogger.Services
 
             string? dbMessage = null;
             string? dbError = null;
+            IReadOnlyList<SavedMessageInfo> savedMessages = Array.Empty<SavedMessageInfo>();
 
             try
             {
@@ -67,8 +68,16 @@ namespace KakaoPcLogger.Services
 
                 if (parsed.Count > 0)
                 {
-                    ChatDatabase.SaveMessages(_dbPath, chatId, parsed);
-                    dbMessage = $"[DB] 저장됨: {parsed.Count}건 ({entry.Title})\n";
+                    savedMessages = ChatDatabase.SaveMessages(_dbPath, chatId, parsed);
+
+                    if (savedMessages.Count > 0)
+                    {
+                        dbMessage = $"[DB] 저장됨: {savedMessages.Count}건 ({entry.Title})\n";
+                    }
+                    else
+                    {
+                        dbMessage = "[DB] 중복으로 저장된 항목이 없습니다.\n";
+                    }
                 }
                 else
                 {
@@ -85,7 +94,8 @@ namespace KakaoPcLogger.Services
                 Success = true,
                 ClipboardText = clipboardText,
                 DbMessage = dbMessage,
-                DbError = dbError
+                DbError = dbError,
+                SavedMessages = savedMessages
             };
         }
 

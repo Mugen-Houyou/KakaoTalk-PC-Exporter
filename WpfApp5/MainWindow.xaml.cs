@@ -29,6 +29,7 @@ namespace KakaoPcLogger
         private readonly ChatCaptureService _captureService;
         private readonly ChatSendService _sendService;
         private readonly RestApiService? _restApiService;
+        private readonly WebhookNotificationService? _webhookService;
         private readonly AppConfiguration _configuration;
         private readonly string _dbPath;
 
@@ -73,6 +74,7 @@ namespace KakaoPcLogger
             _sendService = new ChatSendService(_windowInteractor);
 
             RestApiService? restApiService = null;
+            _webhookService = null;
             try
             {
                 var restPrefix = _configuration.RestApi.Prefix;
@@ -89,6 +91,19 @@ namespace KakaoPcLogger
             }
 
             _restApiService = restApiService;
+
+            if (!string.IsNullOrWhiteSpace(_configuration.Webhook.MessageUpdateUrl))
+            {
+                try
+                {
+                    _webhookService = new WebhookNotificationService(_configuration.Webhook.MessageUpdateUrl!);
+                    _webhookService.Log += AppendLog;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"[Webhook] 초기화 실패: {ex.Message}");
+                }
+            }
 
             LvChats.ItemsSource = _chats;
             LvChats.SelectionChanged += OnChatSelectionChanged;
@@ -191,6 +206,7 @@ namespace KakaoPcLogger
         {
             base.OnClosed(e);
             _restApiService?.Dispose();
+            _webhookService?.Dispose();
         }
 
         private void OnChatDoubleClick(object sender, MouseButtonEventArgs e)
@@ -339,7 +355,7 @@ namespace KakaoPcLogger
                 }
 
                 // 실제 캡처
-                CaptureOne(entry);
+                CaptureOne(entry, triggeredByFlash: true);
 
                 // 성공적으로 캡처했으면 최종 시각 갱신(선반영했지만 성공 타이밍으로 다시 박고 싶다면)
                 _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
@@ -525,7 +541,7 @@ namespace KakaoPcLogger
             }
         }
 
-        private void CaptureOne(ChatEntry entry)
+        private void CaptureOne(ChatEntry entry, bool triggeredByFlash = false)
         {
             var result = _captureService.Capture(entry);
 
@@ -563,6 +579,11 @@ namespace KakaoPcLogger
             AppendChatLog(entry, $"[#{_captureCount} {now:HH:mm:ss}] --- 캡처 시작 --- [{entry.Title}] {entry.HwndHex}\n");
             AppendChatLog(entry, text.EndsWith("\n", StringComparison.Ordinal) ? text : text + "\n");
             AppendChatLog(entry, $"[#{_captureCount}] --- 캡처 끝 ---\n");
+
+            if (triggeredByFlash && _webhookService is not null && result.SavedMessages.Count > 0)
+            {
+                _webhookService.NotifyMessages(entry.Title, result.SavedMessages);
+            }
         }
 
         private void AppendChatLog(ChatEntry entry, string line)
