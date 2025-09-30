@@ -8,9 +8,17 @@ namespace WpfApp5.Configuration
 {
     public sealed class AppConfiguration
     {
-        public DatabaseConfiguration Database { get; init; } = new();
-        public RestApiConfiguration RestApi { get; init; } = new();
-        public WebhookConfiguration Webhook { get; init; } = new();
+        public DatabaseConfiguration Database { get; init; }
+        public RestApiConfiguration RestApi { get; init; }
+        public WebhookConfiguration Webhook { get; init; }
+
+        // init 전용 속성은 생성자에서 설정 가능
+        public AppConfiguration()
+        {
+            Database = new DatabaseConfiguration();
+            RestApi = new RestApiConfiguration();
+            Webhook = new WebhookConfiguration();
+        }
 
         public static AppConfiguration Load(string baseDirectory)
         {
@@ -37,10 +45,6 @@ namespace WpfApp5.Configuration
                     AllowTrailingCommas = true
                 }) ?? new AppConfiguration();
             }
-
-            config.Database ??= new DatabaseConfiguration();
-            config.RestApi ??= new RestApiConfiguration();
-            config.Webhook ??= new WebhookConfiguration();
 
             config.Database.Path = ResolveDatabasePath(baseDirectory, config.Database.Path);
             config.RestApi.Normalize();
