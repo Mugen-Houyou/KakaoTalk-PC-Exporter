@@ -49,7 +49,7 @@ namespace KakaoPcLogger.Services
             }
 
             FocusParent(entry.ParentHwnd);
-            Thread.Sleep(30);
+            Thread.Sleep(10);
             ClickTextbox(input);
             Thread.Sleep(10);
             PressKey(input, NativeConstants.VK_C, false);

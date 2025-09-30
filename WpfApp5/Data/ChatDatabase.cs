@@ -155,7 +155,8 @@ WHERE chat_id = $c AND sender = $s AND ts_local = $t AND content = $b;
 
                 nextOrderCache[key] = msgOrder + 1;
 
-                string hash = ComputeHash(chatId, sender, tsIso, content, msgOrder);
+                //string hash = ComputeHash(chatId, sender, tsIso, content, msgOrder);
+                string hash = ComputeHash(chatId, sender, tsIso, content);
 
                 pC.Value = chatId;
                 pS.Value = sender;
@@ -217,13 +218,14 @@ CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts_local);
             }
         }
 
-        private static string ComputeHash(long chatId, string sender, string tsLocalIso, string content, int msgOrder)
+        //private static string ComputeHash(long chatId, string sender, string tsLocalIso, string content, int msgOrder)
+        private static string ComputeHash(long chatId, string sender, string tsLocalIso, string content)
         {
             string input = chatId.ToString(CultureInfo.InvariantCulture)
                 + "\n" + (sender ?? string.Empty)
                 + "\n" + tsLocalIso
-                + "\n" + (content ?? string.Empty)
-                + "\n" + msgOrder.ToString(CultureInfo.InvariantCulture);
+                + "\n" + (content ?? string.Empty);
+                //+ "\n" + msgOrder.ToString(CultureInfo.InvariantCulture);
             using var sha = SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
             var sb = new StringBuilder(bytes.Length * 2);
