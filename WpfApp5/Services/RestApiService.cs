@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -19,21 +20,36 @@ namespace KakaoPcLogger.Services
         private CancellationTokenSource? _cts;
         private Task? _backgroundTask;
 
-        public RestApiService(string prefix, string dbPath)
+        public RestApiService(IEnumerable<string> prefixes, string dbPath)
         {
             if (!HttpListener.IsSupported)
             {
                 throw new NotSupportedException("HTTP Listener is not supported on this platform.");
             }
 
-            if (string.IsNullOrWhiteSpace(prefix))
-            {
-                throw new ArgumentException("HTTP prefix must be provided.", nameof(prefix));
-            }
-
             _dbPath = dbPath ?? throw new ArgumentNullException(nameof(dbPath));
             _listener = new HttpListener();
-            _listener.Prefixes.Add(prefix);
+
+            if (prefixes is null)
+            {
+                throw new ArgumentNullException(nameof(prefixes));
+            }
+
+            var prefixList = prefixes
+                .Where(static prefix => !string.IsNullOrWhiteSpace(prefix))
+                .Select(static prefix => prefix.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (prefixList.Count == 0)
+            {
+                throw new ArgumentException("At least one HTTP prefix must be provided.", nameof(prefixes));
+            }
+
+            foreach (var prefix in prefixList)
+            {
+                _listener.Prefixes.Add(prefix);
+            }
 
             _jsonOptions = new JsonSerializerOptions
             {
