@@ -67,7 +67,7 @@ namespace KakaoPcLogger.Services
                     using var response = await _httpClient.PostAsync(_endpoint, content).ConfigureAwait(false);
                     if (!response.IsSuccessStatusCode)
                     {
-                        Log?.Invoke($"[Webhook] 전송 실패 ({response.StatusCode}): {chatRoom} / {message.LocalTs:yyyy-MM-dd HH:mm:ss}");
+                        Log?.Invoke($"[Webhook] 전송 실패 ({response.StatusCode}): {_endpoint.ToString()}, {chatRoom} / {message.LocalTs:yyyy-MM-dd HH:mm:ss}");
                     }
                     else
                     {

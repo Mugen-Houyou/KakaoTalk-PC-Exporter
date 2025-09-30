@@ -355,10 +355,18 @@ namespace KakaoPcLogger
                 }
 
                 // 실제 캡처
-                CaptureOne(entry, triggeredByFlash: true);
+                var captureResult = CaptureOne(entry);
+
+                if (captureResult.Success && captureResult.SavedMessages.Count > 0 && _webhookService is not null)
+                {
+                    _webhookService.NotifyMessages(entry.Title, captureResult.SavedMessages);
+                }
 
                 // 성공적으로 캡처했으면 최종 시각 갱신(선반영했지만 성공 타이밍으로 다시 박고 싶다면)
-                _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
+                if (captureResult.Success)
+                {
+                    _lastCaptureUtcByHwnd[hwnd] = DateTime.UtcNow;
+                }
             }
             catch (Exception ex)
             {
@@ -541,7 +549,7 @@ namespace KakaoPcLogger
             }
         }
 
-        private void CaptureOne(ChatEntry entry, bool triggeredByFlash = false)
+        private ChatCaptureResult CaptureOne(ChatEntry entry)
         {
             var result = _captureService.Capture(entry);
 
@@ -550,7 +558,7 @@ namespace KakaoPcLogger
                 AppendLog(result.Warning);
                 if (!result.Success)
                 {
-                    return;
+                    return result;
                 }
             }
 
@@ -566,7 +574,7 @@ namespace KakaoPcLogger
 
             if (!result.Success)
             {
-                return;
+                return result;
             }
 
             string text = result.ClipboardText ?? string.Empty;
@@ -580,10 +588,7 @@ namespace KakaoPcLogger
             AppendChatLog(entry, text.EndsWith("\n", StringComparison.Ordinal) ? text : text + "\n");
             AppendChatLog(entry, $"[#{_captureCount}] --- 캡처 끝 ---\n");
 
-            if (triggeredByFlash && _webhookService is not null && result.SavedMessages.Count > 0)
-            {
-                _webhookService.NotifyMessages(entry.Title, result.SavedMessages);
-            }
+            return result;
         }
 
         private void AppendChatLog(ChatEntry entry, string line)
