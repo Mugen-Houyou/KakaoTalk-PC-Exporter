@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using System.Globalization;  // 시간 파싱에 사용
+using WpfApp5.Configuration;
 using WpfApp5.Services;
 
 namespace KakaoPcLogger
@@ -28,6 +29,7 @@ namespace KakaoPcLogger
         private readonly ChatCaptureService _captureService;
         private readonly ChatSendService _sendService;
         private readonly RestApiService? _restApiService;
+        private readonly AppConfiguration _configuration;
         private readonly string _dbPath;
 
         private long _captureCount;
@@ -63,16 +65,23 @@ namespace KakaoPcLogger
         {
             InitializeComponent();
 
-            _dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "kakao_chat_v2.db");
+            var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            _configuration = AppConfiguration.Load(baseDirectory);
+
+            _dbPath = _configuration.Database.Path ?? Path.Combine(baseDirectory, "data", "kakao_chat_v2.db");
             _captureService = new ChatCaptureService(_windowInteractor, new ClipboardService(), _dbPath, _scanner);
             _sendService = new ChatSendService(_windowInteractor);
 
             RestApiService? restApiService = null;
             try
             {
-                restApiService = new RestApiService("http://localhost:5010/", _dbPath);
-                restApiService.Log += AppendLog;
-                restApiService.Start();
+                var restPrefix = _configuration.RestApi.Prefix;
+                if (!string.IsNullOrWhiteSpace(restPrefix))
+                {
+                    restApiService = new RestApiService(restPrefix!, _dbPath);
+                    restApiService.Log += AppendLog;
+                    restApiService.Start();
+                }
             }
             catch (Exception ex)
             {
