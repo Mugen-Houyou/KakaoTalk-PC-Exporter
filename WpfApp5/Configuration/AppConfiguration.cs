@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace WpfApp5.Configuration
 {
@@ -39,7 +40,7 @@ namespace WpfApp5.Configuration
             }
 
             config.Database.Path = ResolveDatabasePath(baseDirectory, config.Database.Path);
-            config.RestApi.Prefix = ResolveRestApiPrefix(config.RestApi.Prefix);
+            config.RestApi.Normalize();
             config.Webhook.MessageUpdateUrl = NormalizeWebhookUrl(config.Webhook.MessageUpdateUrl);
 
             return config;
@@ -57,13 +58,6 @@ namespace WpfApp5.Configuration
             }
 
             return path;
-        }
-
-        private static string ResolveRestApiPrefix(string? configuredPrefix)
-        {
-            return string.IsNullOrWhiteSpace(configuredPrefix)
-                ? "http://localhost:5010/"
-                : configuredPrefix;
         }
 
         private static string NormalizeWebhookUrl(string? configuredUrl)
@@ -89,7 +83,58 @@ namespace WpfApp5.Configuration
 
     public sealed class RestApiConfiguration
     {
-        public string? Prefix { get; set; }
+        private const string DefaultHost = "localhost";
+        private const int DefaultPort = 5010;
+
+        public string? Host { get; set; } = DefaultHost;
+        public int? Port { get; set; } = DefaultPort;
+        public bool UseHttps { get; set; }
+
+        [JsonIgnore]
+        public string? Prefix => BuildPrefix();
+
+        public void Normalize()
+        {
+            if (Host is null)
+            {
+                Host = DefaultHost;
+            }
+            else
+            {
+                Host = Host.Trim();
+            }
+
+            if (!string.IsNullOrEmpty(Host))
+            {
+                if (Port is null || Port <= 0 || Port > 65535)
+                {
+                    Port = DefaultPort;
+                }
+            }
+        }
+
+        public string? BuildPrefix()
+        {
+            if (string.IsNullOrWhiteSpace(Host))
+            {
+                return null;
+            }
+
+            var effectiveHost = Host.Trim();
+            if (effectiveHost.Length == 0)
+            {
+                return null;
+            }
+
+            var effectivePort = Port ?? DefaultPort;
+            if (effectivePort <= 0 || effectivePort > 65535)
+            {
+                return null;
+            }
+
+            var scheme = UseHttps ? "https" : "http";
+            return $"{scheme}://{effectiveHost}:{effectivePort}/";
+        }
     }
 
     public sealed class WebhookConfiguration
