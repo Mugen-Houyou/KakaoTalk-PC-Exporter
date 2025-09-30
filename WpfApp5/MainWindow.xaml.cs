@@ -77,10 +77,10 @@ namespace KakaoPcLogger
             _webhookService = null;
             try
             {
-                var restPrefix = _configuration.RestApi.Prefix;
-                if (!string.IsNullOrWhiteSpace(restPrefix))
+                var restPrefixes = _configuration.RestApi.Prefixes;
+                if (restPrefixes is { Count: > 0 })
                 {
-                    restApiService = new RestApiService(restPrefix!, _dbPath);
+                    restApiService = new RestApiService(restPrefixes, _dbPath);
                     restApiService.Log += AppendLog;
                     restApiService.Start();
                 }
