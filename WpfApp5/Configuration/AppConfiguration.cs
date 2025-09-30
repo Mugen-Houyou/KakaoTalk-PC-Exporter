@@ -85,16 +85,28 @@ namespace WpfApp5.Configuration
     {
         private const string DefaultHost = "localhost";
         private const int DefaultPort = 5010;
+        private const string AnyHostWildcard = "+";
 
         public string? Host { get; set; } = DefaultHost;
         public int? Port { get; set; } = DefaultPort;
         public bool UseHttps { get; set; }
+        public bool AllowAnyHost { get; set; }
 
         [JsonIgnore]
         public string? Prefix => BuildPrefix();
 
         public void Normalize()
         {
+            if (AllowAnyHost)
+            {
+                if (Port is null || Port <= 0 || Port > 65535)
+                {
+                    Port = DefaultPort;
+                }
+
+                return;
+            }
+
             if (Host is null)
             {
                 Host = DefaultHost;
@@ -115,6 +127,19 @@ namespace WpfApp5.Configuration
 
         public string? BuildPrefix()
         {
+            var effectivePort = Port ?? DefaultPort;
+            if (effectivePort <= 0 || effectivePort > 65535)
+            {
+                return null;
+            }
+
+            var scheme = UseHttps ? "https" : "http";
+
+            if (AllowAnyHost)
+            {
+                return $"{scheme}://{AnyHostWildcard}:{effectivePort}/";
+            }
+
             if (string.IsNullOrWhiteSpace(Host))
             {
                 return null;
@@ -126,13 +151,6 @@ namespace WpfApp5.Configuration
                 return null;
             }
 
-            var effectivePort = Port ?? DefaultPort;
-            if (effectivePort <= 0 || effectivePort > 65535)
-            {
-                return null;
-            }
-
-            var scheme = UseHttps ? "https" : "http";
             return $"{scheme}://{effectiveHost}:{effectivePort}/";
         }
     }
