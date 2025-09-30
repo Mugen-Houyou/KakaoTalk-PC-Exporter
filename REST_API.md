@@ -6,7 +6,7 @@ This document describes the lightweight REST interface exposed by **KakaoTalk PC
 
 - The API service starts automatically when the main WPF application launches. A log entry like `[REST] 서비스가 시작되었습니다.` is appended to the in-app log when the listener is ready.
 - The service is automatically disposed when the main window is closed. No additional action is required from users.
-- By default the listener binds to `http://localhost:5010/`, `http://127.0.0.1:5010/`, and `http://mytestapp.com:5010/`. You can change the host list or port without recompiling by editing `appsettings.json` (`RestApi:Host` / `RestApi:Hosts`, `RestApi:Port`). To listen on every hostname, set `RestApi:AllowAnyHost` to `true`, which internally uses the strong wildcard prefix `http://+:<port>/`. Set `RestApi:UseHttps` to `true` once the appropriate HTTPS certificate binding has been configured on the machine.
+- By default the listener loads with `RestApi:AllowAnyHost = true`, so the active prefix is `http://+:5010/` (strong wildcard). This allows inbound requests on port `5010` from any hostname on the machine. To restrict the binding, disable `AllowAnyHost` and provide explicit hostnames via `RestApi:Host` or `RestApi:Hosts`. Set `RestApi:UseHttps` to `true` once the appropriate HTTPS certificate binding has been configured on the machine.
 - Multiple hostnames can be registered simultaneously by either providing a string array under `RestApi:Hosts` or by separating values with commas in `RestApi:Host` (for example: `"localhost", "192.168.0.123", "mytesthost.com"`). Each hostname may optionally include a custom port (e.g. `"mytesthost.com:8080"`); if omitted, the shared `RestApi:Port` value is used.
 - Flash 캡처가 새로운 메시지를 저장할 때 애플리케이션은 기본적으로 `http://localhost:8080/webhook/message-update` 엔드포인트로 Webhook 알림을 발송한다. 다른 서버로 전달하고 싶다면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 조합하여 수정하면 된다. 헬스체크 엔드포인트는 `Webhook:HealthCheck`로 지정한다.
 
@@ -31,6 +31,7 @@ Accept: application/json
 
 - URL-encode the chat title when sending the request.
 - Only the `GET` method is supported. Other HTTP verbs return **405 Method Not Allowed**.
+- If the chat room exists but has no stored rows, the endpoint responds with an empty JSON array (`[]`).
 
 #### Successful response
 
@@ -81,6 +82,29 @@ $encodedTitle = [uri]::EscapeDataString($chatTitle)
 
 Invoke-RestMethod "http://localhost:5010/messages/$encodedTitle"
 ```
+
+### `GET /api/webhook/health`
+
+Simple readiness probe for webhook receivers.
+
+#### Request
+
+```
+GET http://localhost:5010/api/webhook/health
+Accept: text/plain
+```
+
+#### Response
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+
+success
+```
+
+- Useful for monitoring whether the REST listener is reachable from another service.
+- Responds to `GET` only; other methods are rejected with **405 Method Not Allowed** just like the `/messages` endpoint.
 
 ## Troubleshooting
 
