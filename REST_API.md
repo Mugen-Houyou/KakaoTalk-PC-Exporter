@@ -8,7 +8,7 @@ This document describes the lightweight REST interface exposed by **KakaoTalk PC
 - The service is automatically disposed when the main window is closed. No additional action is required from users.
 - By default the listener binds to `http://localhost:5010/`, `http://127.0.0.1:5010/`, and `http://mytestapp.com:5010/`. You can change the host list or port without recompiling by editing `appsettings.json` (`RestApi:Host` / `RestApi:Hosts`, `RestApi:Port`). To listen on every hostname, set `RestApi:AllowAnyHost` to `true`, which internally uses the strong wildcard prefix `http://+:<port>/`. Set `RestApi:UseHttps` to `true` once the appropriate HTTPS certificate binding has been configured on the machine.
 - Multiple hostnames can be registered simultaneously by either providing a string array under `RestApi:Hosts` or by separating values with commas in `RestApi:Host` (for example: `"localhost", "192.168.0.123", "mytesthost.com"`). Each hostname may optionally include a custom port (e.g. `"mytesthost.com:8080"`); if omitted, the shared `RestApi:Port` value is used.
-- Flash 캡처가 새로운 메시지를 저장할 때 애플리케이션은 기본적으로 `http://localhost:8080/` 으로 Webhook 알림을 발송한다. 다른 서버로 전달하고 싶다면 `appsettings.json`의 `Webhook:MessageUpdateUrl` 값을 수정하면 된다.
+- Flash 캡처가 새로운 메시지를 저장할 때 애플리케이션은 기본적으로 `http://localhost:8080/webhook/message-update` 엔드포인트로 Webhook 알림을 발송한다. 다른 서버로 전달하고 싶다면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 조합하여 수정하면 된다. 헬스체크 엔드포인트는 `Webhook:HealthCheck`로 지정한다.
 
 > **Note:** The service uses the built-in `HttpListener` class. Running behind a firewall or on a restricted network may require granting URL ACL permissions for the chosen prefix. 자세한 가이드는 [`HttpListener_URLACL.md`](HttpListener_URLACL.md)를 참고하세요.
 
@@ -94,7 +94,7 @@ To add more endpoints, follow the existing pattern inside `RestApiService.Proces
 
 ## Webhook notifications
 
-FLASH 방식 캡처로 DB에 새 메시지가 저장되면 각 메시지에 대해 `Webhook:MessageUpdateUrl`로 POST 요청이 전송된다. 기본 URL은 `http://localhost:8080/`이며 다음과 같은 JSON 페이로드를 사용한다.
+FLASH 방식 캡처로 DB에 새 메시지가 저장되면 각 메시지에 대해 `Webhook:RemoteHost` + `Webhook:Prefix` + `Webhook:MessageUpdateUrl`로 POST 요청이 전송된다. 기본값은 `http://localhost:8080/webhook/message-update`이며 다음과 같은 JSON 페이로드를 사용한다.
 
 ```
 POST /api/webhook/message-update
@@ -109,4 +109,4 @@ Content-Type: application/json; charset=utf-8
 }
 ```
 
-타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:MessageUpdateUrl` 값을 원하는 절대 URL로 수정하면 된다.
+타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 원하는 값으로 조합해 수정하면 된다.

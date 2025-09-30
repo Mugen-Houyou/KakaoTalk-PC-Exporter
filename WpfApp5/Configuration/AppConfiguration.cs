@@ -8,8 +8,6 @@ namespace WpfApp5.Configuration
 {
     public sealed class AppConfiguration
     {
-        private const string DefaultWebhookUrl = "http://localhost:8080/";
-
         public DatabaseConfiguration Database { get; init; } = new();
         public RestApiConfiguration RestApi { get; init; } = new();
         public WebhookConfiguration Webhook { get; init; } = new();
@@ -40,9 +38,13 @@ namespace WpfApp5.Configuration
                 }) ?? new AppConfiguration();
             }
 
+            config.Database ??= new DatabaseConfiguration();
+            config.RestApi ??= new RestApiConfiguration();
+            config.Webhook ??= new WebhookConfiguration();
+
             config.Database.Path = ResolveDatabasePath(baseDirectory, config.Database.Path);
             config.RestApi.Normalize();
-            config.Webhook.MessageUpdateUrl = NormalizeWebhookUrl(config.Webhook.MessageUpdateUrl);
+            config.Webhook.Normalize();
 
             return config;
         }
@@ -61,20 +63,6 @@ namespace WpfApp5.Configuration
             return path;
         }
 
-        private static string NormalizeWebhookUrl(string? configuredUrl)
-        {
-            if (string.IsNullOrWhiteSpace(configuredUrl))
-            {
-                return DefaultWebhookUrl;
-            }
-
-            if (Uri.TryCreate(configuredUrl, UriKind.Absolute, out var uri))
-            {
-                return uri.ToString();
-            }
-
-            return DefaultWebhookUrl;
-        }
     }
 
     public sealed class DatabaseConfiguration
@@ -282,6 +270,143 @@ namespace WpfApp5.Configuration
 
     public sealed class WebhookConfiguration
     {
+        private const string DefaultRemoteHost = "http://localhost:8080";
+        private const string DefaultMessageUpdatePath = "/webhook/message-update";
+        private const string DefaultHealthCheckPath = "/webhook/health";
+
+        public string? RemoteHost { get; set; }
+        public string? Prefix { get; set; }
         public string? MessageUpdateUrl { get; set; }
+        public string? HealthCheck { get; set; }
+
+        [JsonIgnore]
+        public string MessageUpdateEndpoint => BuildEndpoint(MessageUpdateUrl);
+
+        [JsonIgnore]
+        public string HealthCheckEndpoint => BuildEndpoint(HealthCheck);
+
+        public void Normalize()
+        {
+            RemoteHost = NormalizeRemoteHost(RemoteHost);
+            Prefix = NormalizePrefix(Prefix);
+            MessageUpdateUrl = NormalizePath(MessageUpdateUrl, DefaultMessageUpdatePath);
+            HealthCheck = NormalizePath(HealthCheck, DefaultHealthCheckPath);
+        }
+
+        private string BuildEndpoint(string? relativePath)
+        {
+            var baseUri = BuildBaseUri();
+
+            if (string.IsNullOrWhiteSpace(relativePath) || relativePath.Trim() == "/")
+            {
+                return baseUri.ToString().TrimEnd('/');
+            }
+
+            var trimmed = relativePath.Trim();
+            if (trimmed.StartsWith("/", StringComparison.Ordinal))
+            {
+                trimmed = trimmed.Substring(1);
+            }
+
+            var combined = new Uri(baseUri, trimmed);
+            return combined.ToString();
+        }
+
+        private Uri BuildBaseUri()
+        {
+            var remote = RemoteHost ?? DefaultRemoteHost;
+            if (!Uri.TryCreate(remote, UriKind.Absolute, out var remoteUri))
+            {
+                remoteUri = new Uri(DefaultRemoteHost);
+            }
+
+            var prefix = Prefix;
+            if (string.IsNullOrEmpty(prefix))
+            {
+                var absolute = remoteUri.AbsoluteUri;
+                if (!absolute.EndsWith("/", StringComparison.Ordinal))
+                {
+                    absolute += "/";
+                }
+
+                return new Uri(absolute, UriKind.Absolute);
+            }
+
+            var normalized = prefix;
+            if (!normalized.StartsWith("/", StringComparison.Ordinal))
+            {
+                normalized = "/" + normalized;
+            }
+
+            if (!normalized.EndsWith("/", StringComparison.Ordinal))
+            {
+                normalized += "/";
+            }
+
+            return new Uri(remoteUri, normalized);
+        }
+
+        private static string NormalizeRemoteHost(string? remoteHost)
+        {
+            if (string.IsNullOrWhiteSpace(remoteHost))
+            {
+                return DefaultRemoteHost;
+            }
+
+            var trimmed = remoteHost.Trim();
+            if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+            {
+                return DefaultRemoteHost;
+            }
+
+            var builder = new UriBuilder(uri)
+            {
+                Query = string.Empty,
+                Fragment = string.Empty,
+                Path = string.Empty
+            };
+
+            return builder.Uri.GetLeftPart(UriPartial.Authority);
+        }
+
+        private static string NormalizePrefix(string? prefix)
+        {
+            if (string.IsNullOrWhiteSpace(prefix) || prefix.Trim() == "/")
+            {
+                return string.Empty;
+            }
+
+            var trimmed = prefix.Trim();
+
+            if (!trimmed.StartsWith("/", StringComparison.Ordinal))
+            {
+                trimmed = "/" + trimmed;
+            }
+
+            trimmed = trimmed.TrimEnd('/');
+            return trimmed;
+        }
+
+        private static string NormalizePath(string? path, string defaultValue)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return defaultValue;
+            }
+
+            var trimmed = path.Trim();
+
+            if (!trimmed.StartsWith("/", StringComparison.Ordinal))
+            {
+                trimmed = "/" + trimmed;
+            }
+
+            if (trimmed.Length > 1)
+            {
+                trimmed = trimmed.TrimEnd('/');
+            }
+
+            return trimmed;
+        }
     }
 }

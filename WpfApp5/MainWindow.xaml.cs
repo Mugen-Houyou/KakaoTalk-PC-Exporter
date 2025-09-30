@@ -92,11 +92,12 @@ namespace KakaoPcLogger
 
             _restApiService = restApiService;
 
-            if (!string.IsNullOrWhiteSpace(_configuration.Webhook.MessageUpdateUrl))
+            var webhookEndpoint = _configuration.Webhook.MessageUpdateEndpoint;
+            if (!string.IsNullOrWhiteSpace(webhookEndpoint))
             {
                 try
                 {
-                    _webhookService = new WebhookNotificationService(_configuration.Webhook.MessageUpdateUrl!);
+                    _webhookService = new WebhookNotificationService(webhookEndpoint);
                     _webhookService.Log += AppendLog;
                 }
                 catch (Exception ex)

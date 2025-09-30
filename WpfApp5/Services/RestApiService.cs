@@ -131,6 +131,13 @@ namespace KakaoPcLogger.Services
                     string chatTitle = WebUtility.UrlDecode(segments[1]);
                     await HandleGetMessagesAsync(context.Response, chatTitle).ConfigureAwait(false);
                 }
+                else if (segments.Length == 3
+                    && string.Equals(segments[0], "api", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(segments[1], "webhook", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(segments[2], "health", StringComparison.OrdinalIgnoreCase))
+                {
+                    await HandleWebhookHealthAsync(context.Response).ConfigureAwait(false);
+                }
                 else
                 {
                     await WriteErrorAsync(context.Response, HttpStatusCode.NotFound, "Endpoint not found.").ConfigureAwait(false);
@@ -194,6 +201,19 @@ namespace KakaoPcLogger.Services
                 Log?.Invoke($"[REST] 데이터 조회 중 오류: {ex.Message}");
                 await WriteErrorAsync(response, HttpStatusCode.InternalServerError, "Failed to read messages.").ConfigureAwait(false);
             }
+        }
+
+        private static async Task HandleWebhookHealthAsync(HttpListenerResponse response)
+        {
+            const string payload = "success";
+            var buffer = Encoding.UTF8.GetBytes(payload);
+
+            response.StatusCode = (int)HttpStatusCode.OK;
+            response.ContentType = "text/plain; charset=utf-8";
+            response.ContentEncoding = Encoding.UTF8;
+            response.ContentLength64 = buffer.Length;
+
+            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
         }
 
         private static async Task<long?> GetChatIdAsync(SqliteConnection connection, string chatTitle)
