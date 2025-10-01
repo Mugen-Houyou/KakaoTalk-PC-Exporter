@@ -125,6 +125,7 @@ POST /api/webhook/message-update
 Content-Type: application/json; charset=utf-8
 
 {
+  "host": "mytesthost123",
   "chatRoom": "박주영",
   "sender": "박주영",
   "timestamp": "2025-09-29 10:30:00",
@@ -133,4 +134,4 @@ Content-Type: application/json; charset=utf-8
 }
 ```
 
-타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 원하는 값으로 조합해 수정하면 된다.
+`host` 필드는 `appsettings.json`의 `ExporterHostname` 값을 사용하며 기본값은 `mytesthost123`이다. 타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 원하는 값으로 조합해 수정하면 된다.

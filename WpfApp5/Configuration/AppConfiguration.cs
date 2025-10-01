@@ -8,11 +8,23 @@ namespace WpfApp5.Configuration
 {
     public sealed class AppConfiguration
     {
+        private const string DefaultExporterHostname = "mytesthost123";
+
         public DatabaseConfiguration Database { get; init; }
         public RestApiConfiguration RestApi { get; init; }
         public WebhookConfiguration Webhook { get; init; }
+        public string ExporterHostname { get; set; } = DefaultExporterHostname;
 
-        // init Àü¿ë ¼Ó¼ºÀº »ı¼ºÀÚ¿¡¼­ ¼³Á¤ °¡´É
+            if (string.IsNullOrWhiteSpace(config.ExporterHostname))
+            {
+                config.ExporterHostname = DefaultExporterHostname;
+            }
+            else
+            {
+                config.ExporterHostname = config.ExporterHostname.Trim();
+            }
+
+        // init ì „ìš© ì†ì„±ì€ ìƒì„±ìì—ì„œ ì„¤ì • ê°€ëŠ¥
         public AppConfiguration()
         {
             Database = new DatabaseConfiguration();
