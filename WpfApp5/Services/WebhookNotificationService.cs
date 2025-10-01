@@ -12,9 +12,10 @@ namespace KakaoPcLogger.Services
     {
         private readonly HttpClient _httpClient;
         private readonly Uri _endpoint;
+        private readonly string _host;
         private readonly JsonSerializerOptions _jsonOptions;
 
-        public WebhookNotificationService(string endpoint)
+        public WebhookNotificationService(string endpoint, string host)
         {
             if (string.IsNullOrWhiteSpace(endpoint))
             {
@@ -25,8 +26,13 @@ namespace KakaoPcLogger.Services
             {
                 throw new ArgumentException("Webhook endpoint must be an absolute URI.", nameof(endpoint));
             }
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                throw new ArgumentException("Exporter host name must be provided.", nameof(host));
+            }
 
             _endpoint = uri;
+            _host = host.Trim();
             _httpClient = new HttpClient();
             _jsonOptions = new JsonSerializerOptions
             {
@@ -52,6 +58,7 @@ namespace KakaoPcLogger.Services
             {
                 var payload = new
                 {
+                    host = _host,
                     chatRoom,
                     sender = message.Sender,
                     timestamp = message.LocalTs.ToString("yyyy-MM-dd HH:mm:ss"),

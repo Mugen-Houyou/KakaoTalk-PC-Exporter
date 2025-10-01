@@ -8,9 +8,11 @@ namespace WpfApp5.Configuration
 {
     public sealed class AppConfiguration
     {
+        private const string DefaultExporterHostname = "mytesthost123";
         public DatabaseConfiguration Database { get; init; }
         public RestApiConfiguration RestApi { get; init; }
         public WebhookConfiguration Webhook { get; init; }
+        public string ExporterHostname { get; set; }
 
         // init 전용 속성은 생성자에서 설정 가능
         public AppConfiguration()
@@ -18,6 +20,7 @@ namespace WpfApp5.Configuration
             Database = new DatabaseConfiguration();
             RestApi = new RestApiConfiguration();
             Webhook = new WebhookConfiguration();
+            ExporterHostname = DefaultExporterHostname;
         }
 
         public static AppConfiguration Load(string baseDirectory)
@@ -49,6 +52,10 @@ namespace WpfApp5.Configuration
             config.Database.Path = ResolveDatabasePath(baseDirectory, config.Database.Path);
             config.RestApi.Normalize();
             config.Webhook.Normalize();
+            if (string.IsNullOrWhiteSpace(config.ExporterHostname))
+                config.ExporterHostname = DefaultExporterHostname;
+            else
+                config.ExporterHostname = config.ExporterHostname.Trim();
 
             return config;
         }
@@ -77,7 +84,7 @@ namespace WpfApp5.Configuration
     public sealed class RestApiConfiguration
     {
         private const string DefaultHost = "localhost";
-        private const int DefaultPort = 5010;
+        private const int DefaultPort = 15099;
         private const string AnyHostWildcard = "+";
 
         public string? Host { get; set; } = DefaultHost;

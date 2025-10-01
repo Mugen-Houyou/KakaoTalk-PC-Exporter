@@ -97,7 +97,8 @@ namespace KakaoPcLogger
             {
                 try
                 {
-                    _webhookService = new WebhookNotificationService(webhookEndpoint);
+                    //_webhookService = new WebhookNotificationService(webhookEndpoint);
+                    _webhookService = new WebhookNotificationService(webhookEndpoint, _configuration.ExporterHostname);
                     _webhookService.Log += AppendLog;
                 }
                 catch (Exception ex)
