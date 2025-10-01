@@ -59,8 +59,8 @@ namespace KakaoPcLogger.Interop
 
         [DllImport("user32.dll", SetLastError = true)]
         internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-        [DllImport("user32.dll")] 
-        private static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")]
+        internal static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] 
         private static extern IntPtr GetFocus();
 

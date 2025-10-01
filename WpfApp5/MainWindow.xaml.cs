@@ -60,7 +60,7 @@ namespace KakaoPcLogger
         private bool _isProcessingFlashQueue;
 
         // 캡처 쿨다운 (필요에 맞게 조정: 5~10초 권장)
-        private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(8);
+        private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(1);
 
         public MainWindow()
         {
@@ -381,7 +381,16 @@ namespace KakaoPcLogger
                 }
 
                 // 실제 캡처
-                var captureResult = CaptureOne(entry);
+                IntPtr previousFocus = NativeMethods.GetForegroundWindow();
+                ChatCaptureResult captureResult;
+                try
+                {
+                    captureResult = CaptureOne(entry);
+                }
+                finally
+                {
+                    RestoreWindowFocus(previousFocus);
+                }
 
                 if (captureResult.Success && captureResult.SavedMessages.Count > 0 && _webhookService is not null)
                 {
@@ -398,6 +407,22 @@ namespace KakaoPcLogger
             {
                 AppendLog($"[FLASH 오류] {ex.GetType().Name}: {ex.Message}");
             }
+        }
+
+        private static void RestoreWindowFocus(IntPtr previousFocus)
+        {
+            if (previousFocus == IntPtr.Zero)
+            {
+                return;
+            }
+
+            if (!NativeMethods.IsWindow(previousFocus))
+            {
+                return;
+            }
+
+            NativeMethods.SendMessage(previousFocus, NativeConstants.WM_ACTIVATE, (IntPtr)NativeConstants.WA_ACTIVE, IntPtr.Zero);
+            NativeMethods.SetForegroundWindow(previousFocus);
         }
 
         private void OnChatSelectionChanged(object sender, SelectionChangedEventArgs e)
