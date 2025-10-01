@@ -381,7 +381,16 @@ namespace KakaoPcLogger
                 }
 
                 // 실제 캡처
-                var captureResult = CaptureOne(entry);
+                IntPtr previousFocus = NativeMethods.GetForegroundWindow();
+                ChatCaptureResult captureResult;
+                try
+                {
+                    captureResult = CaptureOne(entry);
+                }
+                finally
+                {
+                    RestoreWindowFocus(previousFocus);
+                }
 
                 if (captureResult.Success && captureResult.SavedMessages.Count > 0 && _webhookService is not null)
                 {
@@ -398,6 +407,22 @@ namespace KakaoPcLogger
             {
                 AppendLog($"[FLASH 오류] {ex.GetType().Name}: {ex.Message}");
             }
+        }
+
+        private static void RestoreWindowFocus(IntPtr previousFocus)
+        {
+            if (previousFocus == IntPtr.Zero)
+            {
+                return;
+            }
+
+            if (!NativeMethods.IsWindow(previousFocus))
+            {
+                return;
+            }
+
+            NativeMethods.SendMessage(previousFocus, NativeConstants.WM_ACTIVATE, (IntPtr)NativeConstants.WA_ACTIVE, IntPtr.Zero);
+            NativeMethods.SetForegroundWindow(previousFocus);
         }
 
         private void OnChatSelectionChanged(object sender, SelectionChangedEventArgs e)
