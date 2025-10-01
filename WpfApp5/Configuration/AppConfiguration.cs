@@ -283,7 +283,7 @@ namespace WpfApp5.Configuration
     {
         private const string DefaultRemoteHost = "http://localhost:8080";
         private const string DefaultMessageUpdatePath = "/webhook/message-update";
-        private const string DefaultHealthCheckPath = "/webhook/health";
+        private const string DefaultHealthCheckPath = "/health";
 
         public string? RemoteHost { get; set; }
         public string? Prefix { get; set; }
