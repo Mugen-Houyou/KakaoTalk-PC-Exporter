@@ -99,17 +99,15 @@ VALUES ($c, $s, $t, $b, $h, $o);
             nextOrderCmd.CommandText = @"
 SELECT MAX(msg_order)
 FROM messages
-WHERE chat_id = $c AND sender = $s AND ts_local = $t AND content = $b;
+WHERE chat_id = $c AND ts_local = $t;
 ";
 
             var qC = nextOrderCmd.CreateParameter(); qC.ParameterName = "$c";
-            var qS = nextOrderCmd.CreateParameter(); qS.ParameterName = "$s";
             var qT = nextOrderCmd.CreateParameter(); qT.ParameterName = "$t";
-            var qB = nextOrderCmd.CreateParameter(); qB.ParameterName = "$b";
 
-            nextOrderCmd.Parameters.AddRange(new[] { qC, qS, qT, qB });
+            nextOrderCmd.Parameters.AddRange(new[] { qC, qT });
 
-            var nextOrderCache = new Dictionary<(string Sender, string Ts, string Content), int>();
+            var nextOrderCache = new Dictionary<string, int>();
             var savedMessages = new List<SavedMessageInfo>();
 
             foreach (var message in messages)
@@ -118,21 +116,19 @@ WHERE chat_id = $c AND sender = $s AND ts_local = $t AND content = $b;
                 string sender = message.Sender ?? string.Empty;
                 string content = message.Content ?? string.Empty;
 
-                var key = (Sender: sender, Ts: tsIso, Content: content);
+                var key = tsIso;
 
                 int msgOrder;
                 if (!nextOrderCache.TryGetValue(key, out var nextAvailableOrder))
                 {
                     qC.Value = chatId;
-                    qS.Value = sender;
                     qT.Value = tsIso;
-                    qB.Value = content;
 
                     var scalar = nextOrderCmd.ExecuteScalar();
                     int maxOrder;
                     if (scalar == null || scalar == DBNull.Value)
                     {
-                        maxOrder = -1;
+                        maxOrder = 0;
                     }
                     else if (scalar is long l)
                     {
