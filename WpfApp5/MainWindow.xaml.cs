@@ -60,7 +60,7 @@ namespace KakaoPcLogger
         private bool _isProcessingFlashQueue;
 
         // 캡처 쿨다운 (필요에 맞게 조정: 5~10초 권장)
-        private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(8);
+        private static readonly TimeSpan CaptureCooldown = TimeSpan.FromSeconds(1);
 
         public MainWindow()
         {
