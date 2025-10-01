@@ -80,7 +80,8 @@ namespace KakaoPcLogger
                 var restPrefixes = _configuration.RestApi.Prefixes;
                 if (restPrefixes is { Count: > 0 })
                 {
-                    restApiService = new RestApiService(restPrefixes, _dbPath);
+                    var healthCheckPaths = BuildHealthCheckPaths(_configuration.Webhook);
+                    restApiService = new RestApiService(restPrefixes, _dbPath, healthCheckPaths);
                     restApiService.Log += AppendLog;
                     restApiService.Start();
                 }
@@ -202,6 +203,29 @@ namespace KakaoPcLogger
             LvChats.MouseDoubleClick += OnChatDoubleClick;
 
             ScanChats();
+        }
+        private static IReadOnlyCollection<string> BuildHealthCheckPaths(WebhookConfiguration webhookConfiguration)
+        {
+            if (webhookConfiguration is null)
+            {
+                return Array.Empty<string>();
+            }
+
+            var prefix = webhookConfiguration.Prefix ?? string.Empty;
+            var healthPath = webhookConfiguration.HealthCheck ?? string.Empty;
+            var combined = string.Concat(prefix, healthPath);
+
+            if (string.IsNullOrWhiteSpace(combined))
+            {
+                return Array.Empty<string>();
+            }
+
+            if (!combined.StartsWith("/", StringComparison.Ordinal))
+            {
+                combined = "/" + combined;
+            }
+
+            return new[] { combined };
         }
 
         protected override void OnClosed(EventArgs e)

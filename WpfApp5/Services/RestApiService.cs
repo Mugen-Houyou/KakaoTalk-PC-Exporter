@@ -15,12 +15,15 @@ namespace KakaoPcLogger.Services
     public sealed class RestApiService : IDisposable
     {
         private readonly string _dbPath;
+        private const string DefaultHealthCheckPath = "/api/webhook/health";
+
         private readonly HttpListener _listener;
         private readonly JsonSerializerOptions _jsonOptions;
+        private readonly HashSet<string> _healthCheckPaths;
         private CancellationTokenSource? _cts;
         private Task? _backgroundTask;
 
-        public RestApiService(IEnumerable<string> prefixes, string dbPath)
+        public RestApiService(IEnumerable<string> prefixes, string dbPath, IEnumerable<string>? healthCheckPaths = null)
         {
             if (!HttpListener.IsSupported)
             {
@@ -55,6 +58,26 @@ namespace KakaoPcLogger.Services
             {
                 WriteIndented = true
             };
+
+            _healthCheckPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var defaultHealthPath = NormalizeAbsolutePath(DefaultHealthCheckPath);
+            if (!string.IsNullOrEmpty(defaultHealthPath))
+            {
+                _healthCheckPaths.Add(defaultHealthPath);
+            }
+
+            if (healthCheckPaths is not null)
+            {
+                foreach (var path in healthCheckPaths)
+                {
+                    var normalized = NormalizeAbsolutePath(path);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        _healthCheckPaths.Add(normalized);
+                    }
+                }
+            }
         }
 
         public event Action<string>? Log;
@@ -123,20 +146,20 @@ namespace KakaoPcLogger.Services
                     return;
                 }
 
-                var path = context.Request.Url?.AbsolutePath ?? string.Empty;
-                var segments = path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var normalizedPath = NormalizeAbsolutePath(context.Request.Url?.AbsolutePath);
+
+                if (_healthCheckPaths.Contains(normalizedPath))
+                {
+                    await HandleWebhookHealthAsync(context.Response).ConfigureAwait(false);
+                    return;
+                }
+
+                var segments = normalizedPath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
 
                 if (segments.Length == 2 && string.Equals(segments[0], "messages", StringComparison.OrdinalIgnoreCase))
                 {
                     string chatTitle = WebUtility.UrlDecode(segments[1]);
                     await HandleGetMessagesAsync(context.Response, chatTitle).ConfigureAwait(false);
-                }
-                else if (segments.Length == 3
-                    && string.Equals(segments[0], "api", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(segments[1], "webhook", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(segments[2], "health", StringComparison.OrdinalIgnoreCase))
-                {
-                    await HandleWebhookHealthAsync(context.Response).ConfigureAwait(false);
                 }
                 else
                 {
@@ -205,11 +228,12 @@ namespace KakaoPcLogger.Services
 
         private static async Task HandleWebhookHealthAsync(HttpListenerResponse response)
         {
-            const string payload = "success";
+            const string payload = "{\"status\":\"running\"}";
             var buffer = Encoding.UTF8.GetBytes(payload);
 
             response.StatusCode = (int)HttpStatusCode.OK;
-            response.ContentType = "text/plain; charset=utf-8";
+            response.ContentType = "application/json; charset=utf-8";
+            //response.ContentType = "text/plain; charset=utf-8";
             response.ContentEncoding = Encoding.UTF8;
             response.ContentLength64 = buffer.Length;
 
@@ -307,6 +331,29 @@ ORDER BY msg_order ASC, id ASC;";
             response.ContentLength64 = buffer.Length;
 
             await response.OutputStream.WriteAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+        }
+
+
+        private static string NormalizeAbsolutePath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return "/";
+            }
+
+            var trimmed = path.Trim();
+
+            if (!trimmed.StartsWith("/", StringComparison.Ordinal))
+            {
+                trimmed = "/" + trimmed;
+            }
+
+            if (trimmed.Length > 1 && trimmed.EndsWith("/", StringComparison.Ordinal))
+            {
+                trimmed = trimmed.TrimEnd('/');
+            }
+
+            return trimmed;
         }
 
         public void Dispose()
