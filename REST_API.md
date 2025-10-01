@@ -118,13 +118,14 @@ To add more endpoints, follow the existing pattern inside `RestApiService.Proces
 
 ## Webhook notifications
 
-FLASH 방식 캡처로 DB에 새 메시지가 저장되면 각 메시지에 대해 `Webhook:RemoteHost` + `Webhook:Prefix` + `Webhook:MessageUpdateUrl`로 POST 요청이 전송된다. 기본값은 `http://localhost:8080/webhook/message-update`이며 다음과 같은 JSON 페이로드를 사용한다.
+FLASH 방식 캡처로 DB에 새 메시지가 저장되면 각 메시지에 대해 `Webhook:RemoteHost` + `Webhook:Prefix` + `Webhook:MessageUpdateUrl`로 POST 요청이 전송된다. 기본값은 `http://localhost:8080/api/webhook/message-update`이며 다음과 같은 JSON 페이로드를 사용한다.
 
 ```
 POST /api/webhook/message-update
 Content-Type: application/json; charset=utf-8
 
 {
+  "host": "mytesthost123",
   "chatRoom": "박주영",
   "sender": "박주영",
   "timestamp": "2025-09-29 10:30:00",
@@ -133,4 +134,4 @@ Content-Type: application/json; charset=utf-8
 }
 ```
 
-타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 원하는 값으로 조합해 수정하면 된다.
+타임스탬프는 `yyyy-MM-dd HH:mm:ss` 형식으로 직렬화되며, `order`는 `msg_order` 값을 그대로 전달한다. `host` 값은 `appsettings.json`의 `ExporterHostname` 설정을 사용하며, 기본값은 `mytesthost123`이다. 다른 엔드포인트로 전달하려면 `appsettings.json`의 `Webhook:RemoteHost`, `Webhook:Prefix`, `Webhook:MessageUpdateUrl` 값을 원하는 값으로 조합해 수정하면 된다.

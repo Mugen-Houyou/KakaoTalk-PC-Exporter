@@ -8,11 +8,26 @@ namespace WpfApp5.Configuration
 {
     public sealed class AppConfiguration
     {
+        private const string DefaultExporterHostname = "mytesthost123";
+
         public DatabaseConfiguration Database { get; init; }
         public RestApiConfiguration RestApi { get; init; }
         public WebhookConfiguration Webhook { get; init; }
+        public string ExporterHostname { get; set; }
 
-        // init Àü¿ë ¼Ó¼ºÀº »ı¼ºÀÚ¿¡¼­ ¼³Á¤ °¡´É
+            ExporterHostname = DefaultExporterHostname;
+            config.ExporterHostname = NormalizeExporterHostname(config.ExporterHostname);
+        private static string NormalizeExporterHostname(string? configured)
+        {
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                return DefaultExporterHostname;
+            }
+
+            return configured.Trim();
+        }
+
+        // init ì „ìš© ì†ì„±ì€ ìƒì„±ìì—ì„œ ì„¤ì • ê°€ëŠ¥
         public AppConfiguration()
         {
             Database = new DatabaseConfiguration();
@@ -275,8 +290,8 @@ namespace WpfApp5.Configuration
     public sealed class WebhookConfiguration
     {
         private const string DefaultRemoteHost = "http://localhost:8080";
-        private const string DefaultMessageUpdatePath = "/webhook/message-update";
-        private const string DefaultHealthCheckPath = "/webhook/health";
+        private const string DefaultMessageUpdatePath = "/api/webhook/message-update";
+        private const string DefaultHealthCheckPath = "/api/webhook/health";
 
         public string? RemoteHost { get; set; }
         public string? Prefix { get; set; }

@@ -11,10 +11,13 @@ namespace KakaoPcLogger.Services
     public sealed class WebhookNotificationService : IDisposable
     {
         private readonly HttpClient _httpClient;
+        private const string DefaultExporterHostname = "mytesthost123";
+
         private readonly Uri _endpoint;
+        private readonly string _exporterHostname;
         private readonly JsonSerializerOptions _jsonOptions;
 
-        public WebhookNotificationService(string endpoint)
+        public WebhookNotificationService(string endpoint, string exporterHostname)
         {
             if (string.IsNullOrWhiteSpace(endpoint))
             {
@@ -28,6 +31,9 @@ namespace KakaoPcLogger.Services
 
             _endpoint = uri;
             _httpClient = new HttpClient();
+            _exporterHostname = string.IsNullOrWhiteSpace(exporterHostname)
+                ? DefaultExporterHostname
+                : exporterHostname.Trim();
             _jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -52,6 +58,7 @@ namespace KakaoPcLogger.Services
             {
                 var payload = new
                 {
+                    host = _exporterHostname,
                     chatRoom,
                     sender = message.Sender,
                     timestamp = message.LocalTs.ToString("yyyy-MM-dd HH:mm:ss"),
